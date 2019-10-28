@@ -14,6 +14,7 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
+#include "DeviceAddresses.h"
 
 ESP8266WiFiMulti WiFiMulti;
 
@@ -26,12 +27,7 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
 // arrays to hold device address
-DeviceAddress one = { 0x28, 0x5D, 0x43, 0x45, 0x92, 0x13, 0x02, 0xDE };
-DeviceAddress two = { 0x28, 0x71, 0x3E, 0x45, 0x92, 0x0E, 0x02, 0xF1 };
-DeviceAddress three = { 0x28, 0xBE, 0x1A, 0x45, 0x92, 0x16, 0x02, 0x37 };
-DeviceAddress four = { 0x28, 0x96, 0x47, 0x45, 0x92, 0x13, 0x02, 0xA6 };
-DeviceAddress five = { 0x28, 0xD2, 0x45, 0x45, 0x92, 0x13, 0x02, 0x8C };
-
+DeviceAddress one, two, three, four, five;
 
 // function to print a device address
 void printAddress(DeviceAddress deviceAddress)
@@ -57,9 +53,33 @@ void printTemperature(DeviceAddress d, float tempC, float tempF)
   Serial.println(tempF);
 }
 
+
+void setupDevice(DeviceAddress d)
+{
+	// show the addresses we found on the bus
+	Serial.print("Device Address: ");
+	printAddress(d);
+	Serial.println();
+
+	// set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
+	sensors.setResolution(d, 9);
+
+	Serial.print("Device Resolution: ");
+	Serial.print(sensors.getResolution(d), DEC);
+	Serial.println();
+}
+
+
 void setup() {
 
   Serial.begin(115200);
+
+  // load device addresses from flash
+  memcpy_P(one, mbr_in, devaddr_len);
+  memcpy_P(two, mbr_out, devaddr_len);
+  memcpy_P(three, valve_inb, devaddr_len);
+  memcpy_P(four, valve_insys, devaddr_len);
+  memcpy_P(five, valve_out, devaddr_len);
 
   Serial.println();
   Serial.println();
@@ -75,63 +95,13 @@ void setup() {
   WiFiMulti.addAP("nusbaum-24g", "we live in Park City now");
 
   sensors.begin();
-  
-  // show the addresses we found on the bus
-  Serial.print("Device Address: ");
-  printAddress(one);
-  Serial.println();
 
-  // set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
-  sensors.setResolution(one, 9);
- 
-  Serial.print("Device Resolution: ");
-  Serial.print(sensors.getResolution(one), DEC); 
-  Serial.println();
-
-   // show the addresses we found on the bus
-  Serial.print("Device Address: ");
-  printAddress(two);
-  Serial.println();
-
-  // set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
-  sensors.setResolution(two, 9);
- 
-  Serial.print("Device Resolution: ");
-  Serial.print(sensors.getResolution(two), DEC); 
-  Serial.println();
-  
-  Serial.print("Device Address: ");
-  printAddress(three);
-  Serial.println();
-
-  // set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
-  sensors.setResolution(three, 9);
- 
-  Serial.print("Device Resolution: ");
-  Serial.print(sensors.getResolution(three), DEC); 
-  Serial.println();
-
-  Serial.print("Device Address: ");
-  printAddress(four);
-  Serial.println();
-
-  // set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
-  sensors.setResolution(four, 9);
- 
-  Serial.print("Device Resolution: ");
-  Serial.print(sensors.getResolution(four), DEC); 
-  Serial.println();
-
-  Serial.print("Device Address: ");
-  printAddress(five);
-  Serial.println();
-
-  // set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
-  sensors.setResolution(five, 9);
- 
-  Serial.print("Device Resolution: ");
-  Serial.print(sensors.getResolution(five), DEC); 
-  Serial.println();
+  // setup devices
+  setupDevice(one);
+  setupDevice(two);
+	setupDevice(three);
+	setupDevice(four);
+	setupDevice(five);
 }
 
 void processTemp(DeviceAddress d)
