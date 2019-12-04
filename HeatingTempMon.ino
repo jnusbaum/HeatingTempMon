@@ -18,7 +18,7 @@
 
 ESP8266WiFiMulti WiFiMulti;
 
-#define ONE_WIRE_BUS 4
+#define ONE_WIRE_BUS 2
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
 OneWire oneWire(ONE_WIRE_BUS);
@@ -27,7 +27,7 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
 // arrays to hold device address
-DeviceAddress one, two, three, four, five;
+DeviceAddress one, two, three, four, five, six;
 
 // function to print a device address
 void printAddress(DeviceAddress deviceAddress)
@@ -75,11 +75,12 @@ void setup() {
   Serial.begin(115200);
 
   // load device addresses from flash
-  memcpy_P(one, mbr_in, devaddr_len);
-  memcpy_P(two, mbr_out, devaddr_len);
-  memcpy_P(three, valve_inb, devaddr_len);
-  memcpy_P(four, valve_insys, devaddr_len);
-  memcpy_P(five, valve_out, devaddr_len);
+  memcpy_P(one, kitchen_out, devaddr_len);
+  memcpy_P(two, laundry_out, devaddr_len);
+  memcpy_P(three, garage_out, devaddr_len);
+  memcpy_P(four, garage_in, devaddr_len);
+  memcpy_P(five, laundry_in, devaddr_len);
+  memcpy_P(six, kitchen_in, devaddr_len);
 
   Serial.println();
   Serial.println();
