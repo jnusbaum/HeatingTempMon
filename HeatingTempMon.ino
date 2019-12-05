@@ -12,22 +12,20 @@
 #include <WiFiClient.h>
 
 #include <OneWire.h>
-#include <DallasTemperature.h>
-
 #include "DeviceAddresses.h"
 
 ESP8266WiFiMulti WiFiMulti;
 
-#define ONE_WIRE_BUS 4
-
-// Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
-OneWire oneWire(ONE_WIRE_BUS);
+// Setup 3 oneWire instances to communicate with temp sensors
+OneWire oneWireUpstairs(0);
+OneWire oneWireDownstairs(2);
+OneWire oneWireBoilerAndValve(4);
 
 // Pass our oneWire reference to Dallas Temperature. 
-DallasTemperature sensors(&oneWire);
+DallasTemperature sensorsUpstairs(&oneWireUpstairs);
+DallasTemperature sensorsDownstairs(&oneWireDownstairs);
+DallasTemperature sensorsBoilerAndValve(&oneWireBoilerAndValve);
 
-// arrays to hold device address
-DeviceAddress one, two, three, four, five;
 
 // function to print a device address
 void printAddress(DeviceAddress deviceAddress)
@@ -54,32 +52,24 @@ void printTemperature(DeviceAddress d, float tempC, float tempF)
 }
 
 
-void setupDevice(DeviceAddress d)
+void setupDevice(DallasTemperature sensors, DeviceAddress device)
 {
-	// show the addresses we found on the bus
-	Serial.print("Device Address: ");
-	printAddress(d);
-	Serial.println();
-
-	// set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
-	sensors.setResolution(d, 9);
-
-	Serial.print("Device Resolution: ");
-	Serial.print(sensors.getResolution(d), DEC);
-	Serial.println();
+  	Serial.print("Device Address: ");
+  	printAddress(device);
+  	Serial.println();
+  
+  	// set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
+  	sensors.setResolution(device, 9);
+  
+  	Serial.print("Device Resolution: ");
+  	Serial.print(sensors.getResolution(device), DEC);
+  	Serial.println();
 }
 
 
 void setup() {
 
   Serial.begin(115200);
-
-  // load device addresses from flash
-  memcpy_P(one, mbr_in, devaddr_len);
-  memcpy_P(two, mbr_out, devaddr_len);
-  memcpy_P(three, valve_inb, devaddr_len);
-  memcpy_P(four, valve_insys, devaddr_len);
-  memcpy_P(five, valve_out, devaddr_len);
 
   Serial.println();
   Serial.println();
@@ -94,27 +84,37 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFiMulti.addAP("nusbaum-24g", "we live in Park City now");
 
-  sensors.begin();
-
+  sensorsUpstairs.begin();
+  sensorsDownstairs.begin();
+  sensorsBoilerAndValve.begin();
+  
   // setup devices
-  setupDevice(one);
-  setupDevice(two);
-	setupDevice(three);
-	setupDevice(four);
-	setupDevice(five);
+  for (int x = 0; x < 6; ++x)
+  {
+    setupDevice(sensorsUpstairs, devicesUpstairs[x].devaddr);
+  }
+  for (int x = 0; x < 8; ++x)
+  {
+    setupDevice(sensorsDownstairs, devicesDownstairs[x].devaddr);
+  }
+  for (int x = 0; x < 4; ++x)
+  {
+    setupDevice(sensorsBoilerAndValve, devicesBoilerAndValve[x].devaddr);
+  }
 }
 
-void processTemp(DeviceAddress d)
+
+void processTemp(DallasTemperature sensors, daddr &d)
 {
     WiFiClient client;
     HTTPClient http;
     
     // It responds almost immediately. Let's print out the data
-    float tempC = sensors.getTempC(d);
+    float tempC = sensors.getTempC(d.devaddr);
     float tempF = sensors.toFahrenheit(tempC);
-    printTemperature(d, tempC, tempF); // Use a simple function to print out the data
+    printTemperature(d.devaddr, tempC, tempF); // Use a simple function to print out the data
     Serial.print("[HTTP] begin...\n");
-    if (http.begin(client, "http://192.168.0.174:8000/api/heating/sensors/MBR-IN/data")) 
+    if (http.begin(client, "http://192.168.0.174:8000/api/heating/sensors/" + d.devname + "/data")) 
     {  
       // HTTP
       Serial.print("[HTTP] POST...\n");
@@ -156,14 +156,23 @@ void loop() {
     // call sensors.requestTemperatures() to issue a global temperature 
     // request to all devices on the bus
     Serial.print("Requesting temperatures...");
-    sensors.requestTemperatures(); // Send the command to get temperatures
+    sensorsUpstairs.requestTemperatures(); // Send the command to get temperatures
+    sensorsDownstairs.requestTemperatures(); // Send the command to get temperatures
+    sensorsBoilerAndValve.requestTemperatures(); // Send the command to get temperatures
     Serial.println("Done");
 
-    processTemp(one);
-    processTemp(two);
-    processTemp(three);
-    processTemp(four);
-    processTemp(five);
+    for (int x = 0; x < 6; ++x)
+    {
+      processTemp(sensorsUpstairs, devicesUpstairs[x]);
+    }
+    for (int x = 0; x < 8; ++x)
+    {
+      processTemp(sensorsDownstairs, devicesDownstairs[x]);
+    }
+    for (int x = 0; x < 4; ++x)
+    {
+      processTemp(sensorsBoilerAndValve, devicesBoilerAndValve[x]);
+    }
   }
 
   delay(10000);
