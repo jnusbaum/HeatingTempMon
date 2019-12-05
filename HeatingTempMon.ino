@@ -104,7 +104,7 @@ void setup() {
 }
 
 
-void processTemp(DallasTemperature sensors, daddr &d)
+void processTemp(DallasTemperature sensors, devinfo &d)
 {
     WiFiClient client;
     HTTPClient http;
