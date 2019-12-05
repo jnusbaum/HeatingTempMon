@@ -114,7 +114,7 @@ void processTemp(DallasTemperature sensors, devinfo &d)
     float tempF = sensors.toFahrenheit(tempC);
     printTemperature(d.devaddr, tempC, tempF); // Use a simple function to print out the data
     Serial.print("[HTTP] begin...\n");
-    if (http.begin(client, "http://192.168.0.174:8000/api/heating/sensors/" + d.devname + "/data")) 
+    if (http.begin(client, "http://192.168.0.104:8000/api/heating/sensors/" + d.devname + "/data")) 
     {  
       // HTTP
       Serial.print("[HTTP] POST...\n");
@@ -130,7 +130,7 @@ void processTemp(DallasTemperature sensors, devinfo &d)
         Serial.printf("[HTTP] POST... code: %d\n", httpCode);
 
         // file found at server
-        if (httpCode != HTTP_CODE_OK) 
+        if (httpCode != HTTP_CODE_CREATED) 
         {
           Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
         }
