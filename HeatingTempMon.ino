@@ -16,6 +16,9 @@
 
 ESP8266WiFiMulti WiFiMulti;
 
+#define HOST 192.168.0.104
+#define PORT 5000
+
 #ifdef DEBUG
 #define DEBUG_PRINT(x)     Serial.print (x)
 #define DEBUG_PRINTF(x, y)     Serial.printf (x, y)
@@ -138,7 +141,7 @@ void processTemp(DallasTemperature sensors, devinfo &d)
   printTemperature(d.devaddr, tempC, tempF); // Use a simple function to print out the data
 #endif
   DEBUG_PRINTLN("[HTTP] begin...");
-  if (http.begin(client, "http://192.168.0.104:8000/api/heating/sensors/" + d.devname + "/data"))
+  if (http.begin(client, String("http://") + "HOST" + ":" + "PORT" + "/sensors/" + d.devname + "/data"))
   {
     // HTTP
     DEBUG_PRINTLN("[HTTP] POST...");
