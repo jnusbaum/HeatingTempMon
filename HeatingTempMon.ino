@@ -14,8 +14,9 @@
 #include <OneWire.h>
 #include "DeviceAddresses.h"
 
-#define HOST 192.168.0.104
-#define PORT 5000
+#define HOST "192.168.0.134"
+#define PORT "80"
+
 #define DEBUG
 
 #ifdef DEBUG
@@ -155,7 +156,9 @@ void processTemp(String tstr, DallasTemperature sensors, devinfo &d)
   printTemperature(d.devaddr, tempC, tempF); // Use a simple function to print out the data
 #endif
   DEBUG_PRINTLN("[HTTP] begin...");
-  if (http.begin(client, String("http://") + "HOST" + ":" + "PORT" + "/sensors/" + d.devname + "/data"))
+  String url = String("http://") + HOST + ":" + PORT + "/sensors/" + d.devname + "/data";
+  DEBUG_PRINTF("[HTTP] POSTing to %s\n", url.c_str());
+  if (http.begin(client, url))
   {
     // HTTP
     DEBUG_PRINTLN("[HTTP] POST...");
@@ -203,24 +206,27 @@ void loop()
 
     // call sensors.requestTemperatures() to issue a global temperature
     unsigned long etime = timeClient.getEpochTime();
+    DEBUG_PRINTF("\n\ntimestamp = %lu\n\n", etime);
     sensorsUpstairs.requestTemperatures(); // Send the command to get temperatures
     sensorsDownstairs.requestTemperatures(); // Send the command to get temperatures
     sensorsBoilerAndValve.requestTemperatures(); // Send the command to get temperatures
 
     DateTime ldtm(etime);
-    String tstr = ldtm.toString("YYYY-MM-DD hh:mm:ss");
+    char buffer[] = "YYYY-MM-DD-hh-mm-ss";
+    ldtm.toString(buffer);
+    DEBUG_PRINTF("\n\ntimestr = %s\n\n", buffer);
 
     for (int x = 0; x < 6; ++x)
     {
-      processTemp(tstr, sensorsUpstairs, devicesUpstairs[x]);
+      processTemp(buffer, sensorsUpstairs, devicesUpstairs[x]);
     }
     for (int x = 0; x < 8; ++x)
     {
-      processTemp(tstr, sensorsDownstairs, devicesDownstairs[x]);
+      processTemp(buffer, sensorsDownstairs, devicesDownstairs[x]);
     }
     for (int x = 0; x < 4; ++x)
     {
-      processTemp(tstr, sensorsBoilerAndValve, devicesBoilerAndValve[x]);
+      processTemp(buffer, sensorsBoilerAndValve, devicesBoilerAndValve[x]);
     }
   }
 }
