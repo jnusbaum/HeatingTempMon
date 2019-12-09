@@ -7,17 +7,16 @@
 #include <Arduino.h>
 
 #include <ESP8266WiFi.h>
-#include <ESP8266WiFiMulti.h>
 #include <ESP8266HTTPClient.h>
-#include <WiFiClient.h>
-
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+#include <RTClib.h>
 #include <OneWire.h>
 #include "DeviceAddresses.h"
 
-ESP8266WiFiMulti WiFiMulti;
-
 #define HOST 192.168.0.104
 #define PORT 5000
+#define DEBUG
 
 #ifdef DEBUG
 #define DEBUG_PRINT(x)     Serial.print (x)
@@ -39,6 +38,8 @@ DallasTemperature sensorsUpstairs(&oneWireUpstairs);
 DallasTemperature sensorsDownstairs(&oneWireDownstairs);
 DallasTemperature sensorsBoilerAndValve(&oneWireBoilerAndValve);
 
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "us.pool.ntp.org", -25200, 5000000);
 
 #ifdef DEBUG
 
@@ -106,9 +107,8 @@ void setup() {
   }
 #endif
 
-  WiFi.mode(WIFI_STA);
-  WiFiMulti.addAP("nusbaum-24g", "we live in Park City now");
-
+  WiFi.begin("nusbaum-24g", "we live in Park City now");
+  
   sensorsUpstairs.begin();
   sensorsDownstairs.begin();
   sensorsBoilerAndValve.begin();
@@ -126,15 +126,29 @@ void setup() {
   {
     setupDevice(sensorsBoilerAndValve, devicesBoilerAndValve[x].devaddr);
   }
+
+  DEBUG_PRINT("Wait for WiFi... ");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    DEBUG_PRINT(".");
+    delay(500);
+  }
+
+  DEBUG_PRINTLN("");
+  DEBUG_PRINTLN("WiFi connected");
+  DEBUG_PRINTLN("IP address: ");
+  DEBUG_PRINTLN(WiFi.localIP());
+
+  timeClient.begin();
+  timeClient.forceUpdate();
 }
 
 
-void processTemp(DallasTemperature sensors, devinfo &d)
+void processTemp(String tstr, DallasTemperature sensors, devinfo &d)
 {
   WiFiClient client;
   HTTPClient http;
 
-  // It responds almost immediately. Let's print out the data
   float tempC = sensors.getTempC(d.devaddr);
   float tempF = sensors.toFahrenheit(tempC);
 #ifdef DEBUG
@@ -146,7 +160,7 @@ void processTemp(DallasTemperature sensors, devinfo &d)
     // HTTP
     DEBUG_PRINTLN("[HTTP] POST...");
     http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-    String data = String("value-real=") + String(tempF, 2);
+    String data = String("value-real=") + String(tempF, 2) + String("&") + String("timestamp=") + tstr;
     // start connection and send HTTP header
     int httpCode = http.POST(data);
 
@@ -179,36 +193,34 @@ void processTemp(DallasTemperature sensors, devinfo &d)
 int period = 10000;
 unsigned long previousMillis = 0;
 
-void loop() {
+void loop() 
+{
   unsigned long currentMillis = millis();
 
   if (currentMillis - previousMillis > period)
   {
     previousMillis = currentMillis;
 
-    // wait for WiFi connection
-    if ((WiFiMulti.run() == WL_CONNECTED))
-    {
-      // call sensors.requestTemperatures() to issue a global temperature
-      // request to all devices on the bus
-      DEBUG_PRINT("Requesting temperatures...");
-      sensorsUpstairs.requestTemperatures(); // Send the command to get temperatures
-      sensorsDownstairs.requestTemperatures(); // Send the command to get temperatures
-      sensorsBoilerAndValve.requestTemperatures(); // Send the command to get temperatures
-      DEBUG_PRINTLN("Done");
+    // call sensors.requestTemperatures() to issue a global temperature
+    unsigned long etime = timeClient.getEpochTime();
+    sensorsUpstairs.requestTemperatures(); // Send the command to get temperatures
+    sensorsDownstairs.requestTemperatures(); // Send the command to get temperatures
+    sensorsBoilerAndValve.requestTemperatures(); // Send the command to get temperatures
 
-      for (int x = 0; x < 6; ++x)
-      {
-        processTemp(sensorsUpstairs, devicesUpstairs[x]);
-      }
-      for (int x = 0; x < 8; ++x)
-      {
-        processTemp(sensorsDownstairs, devicesDownstairs[x]);
-      }
-      for (int x = 0; x < 4; ++x)
-      {
-        processTemp(sensorsBoilerAndValve, devicesBoilerAndValve[x]);
-      }
+    DateTime ldtm(etime);
+    String tstr = ldtm.toString("YYYY-MM-DD hh:mm:ss");
+
+    for (int x = 0; x < 6; ++x)
+    {
+      processTemp(tstr, sensorsUpstairs, devicesUpstairs[x]);
+    }
+    for (int x = 0; x < 8; ++x)
+    {
+      processTemp(tstr, sensorsDownstairs, devicesDownstairs[x]);
+    }
+    for (int x = 0; x < 4; ++x)
+    {
+      processTemp(tstr, sensorsBoilerAndValve, devicesBoilerAndValve[x]);
     }
   }
 }
