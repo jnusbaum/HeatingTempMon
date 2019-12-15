@@ -1,35 +1,51 @@
 #/*
- Name:		HeatingTempMon.ino
- Created:	10/28/2019 2:46:05 PM
- Author:	nusbaum
+  Name:		HeatingTempMon.ino
+  Created:	10/28/2019 2:46:05 PM
+  Author:	nusbaum
 */
 
 #include <Arduino.h>
 
 #include <ESP8266WiFi.h>
-#include <ESP8266WiFiMulti.h>
 #include <ESP8266HTTPClient.h>
-#include <WiFiClient.h>
-
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+#include <RTClib.h>
 #include <OneWire.h>
-#include <DallasTemperature.h>
-
 #include "DeviceAddresses.h"
 
-ESP8266WiFiMulti WiFiMulti;
+#define HOST "192.168.0.134"
+#define PORT "80"
 
-#define ONE_WIRE_BUS 2
+#define DEBUG
 
-// Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
-OneWire oneWire(ONE_WIRE_BUS);
+#ifdef DEBUG
+#define DEBUG_PRINT(x)     Serial.print (x)
+#define DEBUG_PRINTF(x, y)     Serial.printf (x, y)
+#define DEBUG_PRINTLN(x)  Serial.println (x)
+#else
+#define DEBUG_PRINT(x)
+#define DEBUG_PRINTF(x, y)
+#define DEBUG_PRINTLN(x)
+#endif
 
-// Pass our oneWire reference to Dallas Temperature. 
-DallasTemperature sensors(&oneWire);
+// Setup 3 oneWire instances to communicate with temp sensors
+OneWire oneWireUpstairs(0);
+OneWire oneWireDownstairs(2);
+OneWire oneWireBoilerAndValve(4);
 
-// arrays to hold device address
-DeviceAddress one, two, three, four, five, six;
+// Pass our oneWire reference to Dallas Temperature.
+DallasTemperature sensorsUpstairs(&oneWireUpstairs);
+DallasTemperature sensorsDownstairs(&oneWireDownstairs);
+DallasTemperature sensorsBoilerAndValve(&oneWireBoilerAndValve);
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "us.pool.ntp.org", -25200, 5000000);
+
+#ifdef DEBUG
 
 // function to print a device address
+// only called when DEBUG
 void printAddress(DeviceAddress deviceAddress)
 {
   for (uint8_t i = 0; i < 8; i++)
@@ -41,131 +57,176 @@ void printAddress(DeviceAddress deviceAddress)
 
 
 // function to print the temperature for a device
+// only called when DEBUG
 void printTemperature(DeviceAddress d, float tempC, float tempF)
 {
   Serial.print("Temp for Address: ");
   printAddress(d);
   Serial.println();
-  
+
   Serial.print("Temp C: ");
   Serial.print(tempC);
   Serial.print(" Temp F: ");
   Serial.println(tempF);
 }
 
+#endif
 
-void setupDevice(DeviceAddress d)
+
+void setupDevice(DallasTemperature sensors, DeviceAddress device)
 {
-	// show the addresses we found on the bus
-	Serial.print("Device Address: ");
-	printAddress(d);
-	Serial.println();
+#ifdef DEBUG
+  Serial.print("Device Address: ");
+  printAddress(device);
+  Serial.println();
+#endif
 
-	// set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
-	sensors.setResolution(d, 9);
+  // set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
+  sensors.setResolution(device, 9);
 
-	Serial.print("Device Resolution: ");
-	Serial.print(sensors.getResolution(d), DEC);
-	Serial.println();
+#ifdef DEBUG
+  Serial.print("Device Resolution: ");
+  Serial.print(sensors.getResolution(device), DEC);
+  Serial.println();
+#endif
 }
 
 
 void setup() {
 
+#ifdef DEBUG
   Serial.begin(115200);
-
-  // load device addresses from flash
-  memcpy_P(one, kitchen_out, devaddr_len);
-  memcpy_P(two, laundry_out, devaddr_len);
-  memcpy_P(three, garage_out, devaddr_len);
-  memcpy_P(four, garage_in, devaddr_len);
-  memcpy_P(five, laundry_in, devaddr_len);
-  memcpy_P(six, kitchen_in, devaddr_len);
 
   Serial.println();
   Serial.println();
   Serial.println();
 
   for (uint8_t t = 4; t > 0; t--) {
-    Serial.printf("[SETUP] WAIT %d...\n", t);
+    DEBUG_PRINTF("[SETUP] WAIT %d...\n", t);
     Serial.flush();
     delay(1000);
   }
+#endif
 
-  WiFi.mode(WIFI_STA);
-  WiFiMulti.addAP("nusbaum-24g", "we live in Park City now");
-
-  sensors.begin();
+  WiFi.begin("nusbaum-24g", "we live in Park City now");
+  
+  sensorsUpstairs.begin();
+  sensorsDownstairs.begin();
+  sensorsBoilerAndValve.begin();
 
   // setup devices
-  setupDevice(one);
-  setupDevice(two);
-	setupDevice(three);
-	setupDevice(four);
-	setupDevice(five);
-}
-
-void processTemp(DeviceAddress d)
-{
-    WiFiClient client;
-    HTTPClient http;
-    
-    // It responds almost immediately. Let's print out the data
-    float tempC = sensors.getTempC(d);
-    float tempF = sensors.toFahrenheit(tempC);
-    printTemperature(d, tempC, tempF); // Use a simple function to print out the data
-    Serial.print("[HTTP] begin...\n");
-    if (http.begin(client, "http://192.168.0.174:8000/api/heating/sensors/MBR-IN/data")) 
-    {  
-      // HTTP
-      Serial.print("[HTTP] POST...\n");
-      http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-      String data = String("value-real=") + String(tempF, 2);
-      // start connection and send HTTP header
-      int httpCode = http.POST(data);
-
-      // httpCode will be negative on error
-      if (httpCode > 0)
-      {
-        // HTTP header has been send and Server response header has been handled
-        Serial.printf("[HTTP] POST... code: %d\n", httpCode);
-
-        // file found at server
-        if (httpCode != HTTP_CODE_OK) 
-        {
-          Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
-        }
-      } 
-      else 
-      {
-        Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
-      }
-
-      http.end();
-    } 
-    else 
-    {
-      Serial.printf("[HTTP} Unable to connect\n");
-    }
-}
-
-    
-void loop() {
-  // wait for WiFi connection
-  if ((WiFiMulti.run() == WL_CONNECTED)) 
+  for (int x = 0; x < 6; ++x)
   {
-    // call sensors.requestTemperatures() to issue a global temperature 
-    // request to all devices on the bus
-    Serial.print("Requesting temperatures...");
-    sensors.requestTemperatures(); // Send the command to get temperatures
-    Serial.println("Done");
-
-    processTemp(one);
-    processTemp(two);
-    processTemp(three);
-    processTemp(four);
-    processTemp(five);
+    setupDevice(sensorsUpstairs, devicesUpstairs[x].devaddr);
+  }
+  for (int x = 0; x < 8; ++x)
+  {
+    setupDevice(sensorsDownstairs, devicesDownstairs[x].devaddr);
+  }
+  for (int x = 0; x < 4; ++x)
+  {
+    setupDevice(sensorsBoilerAndValve, devicesBoilerAndValve[x].devaddr);
   }
 
-  delay(10000);
+  DEBUG_PRINT("Wait for WiFi... ");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    DEBUG_PRINT(".");
+    delay(500);
+  }
+
+  DEBUG_PRINTLN("");
+  DEBUG_PRINTLN("WiFi connected");
+  DEBUG_PRINTLN("IP address: ");
+  DEBUG_PRINTLN(WiFi.localIP());
+
+  timeClient.begin();
+  timeClient.forceUpdate();
+}
+
+
+void processTemp(String tstr, DallasTemperature sensors, devinfo &d)
+{
+  WiFiClient client;
+  HTTPClient http;
+
+  float tempC = sensors.getTempC(d.devaddr);
+  float tempF = sensors.toFahrenheit(tempC);
+#ifdef DEBUG
+  printTemperature(d.devaddr, tempC, tempF); // Use a simple function to print out the data
+#endif
+  DEBUG_PRINTLN("[HTTP] begin...");
+  String url = String("http://") + HOST + ":" + PORT + "/sensors/" + d.devname + "/data";
+  DEBUG_PRINTF("[HTTP] POSTing to %s\n", url.c_str());
+  if (http.begin(client, url))
+  {
+    // HTTP
+    DEBUG_PRINTLN("[HTTP] POST...");
+    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+    String data = String("value-real=") + String(tempF, 2) + String("&") + String("timestamp=") + tstr;
+    // start connection and send HTTP header
+    int httpCode = http.POST(data);
+
+    // httpCode will be negative on error
+    if (httpCode > 0)
+    {
+      // HTTP header has been send and Server response header has been handled
+      DEBUG_PRINTF("[HTTP] POST... code: %d\n", httpCode);
+
+      // file found at server
+      if (httpCode != HTTP_CODE_CREATED)
+      {
+        DEBUG_PRINTF("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
+      }
+    }
+    else
+    {
+      DEBUG_PRINTF("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
+    }
+
+    http.end();
+  }
+  else
+  {
+    DEBUG_PRINTLN("[HTTP} Unable to connect");
+  }
+}
+
+
+int period = 10000;
+unsigned long previousMillis = 0;
+
+void loop() 
+{
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - previousMillis > period)
+  {
+    previousMillis = currentMillis;
+
+    // call sensors.requestTemperatures() to issue a global temperature
+    unsigned long etime = timeClient.getEpochTime();
+    DEBUG_PRINTF("\n\ntimestamp = %lu\n\n", etime);
+    sensorsUpstairs.requestTemperatures(); // Send the command to get temperatures
+    sensorsDownstairs.requestTemperatures(); // Send the command to get temperatures
+    sensorsBoilerAndValve.requestTemperatures(); // Send the command to get temperatures
+
+    DateTime ldtm(etime);
+    char buffer[] = "YYYY-MM-DD-hh-mm-ss";
+    ldtm.toString(buffer);
+    DEBUG_PRINTF("\n\ntimestr = %s\n\n", buffer);
+
+    for (int x = 0; x < 6; ++x)
+    {
+      processTemp(buffer, sensorsUpstairs, devicesUpstairs[x]);
+    }
+    for (int x = 0; x < 8; ++x)
+    {
+      processTemp(buffer, sensorsDownstairs, devicesDownstairs[x]);
+    }
+    for (int x = 0; x < 4; ++x)
+    {
+      processTemp(buffer, sensorsBoilerAndValve, devicesBoilerAndValve[x]);
+    }
+  }
 }
