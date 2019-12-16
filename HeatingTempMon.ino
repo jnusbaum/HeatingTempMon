@@ -41,7 +41,7 @@ typedef struct {
   int pin;
   DallasTemperature *bus;
   int numsensors;
-  devinfo *sensors;
+  devinfo **sensors;
 }
 sensorbus;
 
@@ -70,23 +70,23 @@ devinfo office_in = { "OFFICE-IN", &dev_sixteen }; // 16
 devinfo exercise_in = { "EXERCISE-IN", &dev_seventeen }; // 17
 devinfo guest_in = { "GUEST-IN", &dev_eighteen }; // 18
 
-devinfo devicesUpstairs[] = { kitchen_out, laundry_out, garage_out, laundry_in, garage_in, kitchen_in };
+devinfo *devicesUpstairs[] = { &kitchen_out, &laundry_out, &garage_out, &laundry_in, &garage_in, &kitchen_in };
 OneWire oneWireUpstairs(0);
 DallasTemperature sensorsUpstairs(&oneWireUpstairs);
 sensorbus busUpstairs = { 0, &sensorsUpstairs, 6, devicesUpstairs };
 
-devinfo devicesDownstairs[] = { family_out, office_out, exercise_out, guest_out, family_in, office_in, exercise_in, guest_in };
+devinfo *devicesDownstairs[] = { &family_out, &office_out, &exercise_out, &guest_out, &family_in, &office_in, &exercise_in, &guest_in };
 OneWire oneWireDownstairs(2);
 DallasTemperature sensorsDownstairs(&oneWireDownstairs);
 sensorbus busDownstairs = { 2, &sensorsDownstairs, 8, devicesDownstairs };
 
-devinfo devicesBoilerAndValve[] = { boiler_in, boiler_out, valve_insys, valve_out };
+devinfo *devicesBoilerAndValve[] = { &boiler_in, &boiler_out, &valve_insys, &valve_out };
 OneWire oneWireBoilerAndValve(4);
 DallasTemperature sensorsBoilerAndValve(&oneWireBoilerAndValve);
-sensorbus busBoilerAndValve = ( 4, &sensorsBoilerAndValve, 4, devicesBoilerAndValve };
+sensorbus busBoilerAndValve = { 4, &sensorsBoilerAndValve, 4, devicesBoilerAndValve };
 
-numbusses = 3;
-sensorbus busses[] = { busUpstairs, busDownstairs, busBoilerAndValve };
+int numbusses = 3;
+sensorbus *busses[] = { &busUpstairs, &busDownstairs, &busBoilerAndValve };
 
 #endif
 
@@ -128,19 +128,19 @@ NTPClient timeClient(ntpUDP, "us.pool.ntp.org", -25200, 5000000);
 
 // function to print a device address
 // only called when DEBUG
-void printAddress(DeviceAddress deviceAddress)
+void printAddress(DeviceAddress *deviceAddress)
 {
   for (uint8_t i = 0; i < 8; i++)
   {
-    if (deviceAddress[i] < 16) Serial.print("0");
-    Serial.print(deviceAddress[i], HEX);
+    if ((*deviceAddress)[i] < 16) Serial.print("0");
+    Serial.print((*deviceAddress)[i], HEX);
   }
 }
 
 
 // function to print the temperature for a device
 // only called when DEBUG
-void printTemperature(DeviceAddress d, float tempC, float tempF)
+void printTemperature(DeviceAddress *d, float tempC, float tempF)
 {
   Serial.print("Temp for Address: ");
   printAddress(d);
@@ -155,24 +155,25 @@ void printTemperature(DeviceAddress d, float tempC, float tempF)
 #endif
 
 
-void setupDevices(sensorbus &bus)
+void setupDevices(sensorbus *bus)
 {
-  for (int y = 0; y < bus.numsensors; ++y)
+  for (int y = 0; y < bus->numsensors; ++y)
   {
-#ifdef DEBUG
-  Serial.print("Device Address: ");
-  printAddress(bus.sensors[y].devaddr);
-  Serial.println();
-#endif
+  #ifdef DEBUG
+    Serial.print("Device Address: ");
+    printAddress(bus->sensors[y]->devaddr);
+    Serial.println();
+  #endif
 
-  // set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
-  sensors->setResolution(bus.sensors[y].devaddr, 9);
+    // set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
+    bus->bus->setResolution(*(bus->sensors[y]->devaddr), 9);
 
-#ifdef DEBUG
-  Serial.print("Device Resolution: ");
-  Serial.print(sensors->getResolution(bus.sensors[y].devaddr), DEC);
-  Serial.println();
-#endif
+  #ifdef DEBUG
+    Serial.print("Device Resolution: ");
+    Serial.print(bus->bus->getResolution(*(bus->sensors[y]->devaddr)), DEC);
+    Serial.println();
+  #endif
+  }
 }
 
 
@@ -196,7 +197,7 @@ void setup() {
 
   for (int x = 0; x < numbusses; ++x)
   {
-    busses[x].bus->begin();
+    busses[x]->bus->begin();
     setupDevices(busses[x]);
   }
     
@@ -217,20 +218,20 @@ void setup() {
 }
 
 
-void processTemps(sensorbus &bus)
+void processTemps(sensorbus *bus)
 {
   WiFiClient client;
   HTTPClient http;
 
-  for (y = 0; y < bus.numsensors; ++y)
+  for (int y = 0; y < bus->numsensors; ++y)
   {
-    float tempC = bus.bus->getTempC(bus.sensors[y].devaddr);
-    float tempF = bus.bus->toFahrenheit(tempC);
+    float tempC = bus->bus->getTempC(*(bus->sensors[y]->devaddr));
+    float tempF = bus->bus->toFahrenheit(tempC);
   #ifdef DEBUG
-    printTemperature(bus.sensors[y].devaddr, tempC, tempF); // Use a simple function to print out the data
+    printTemperature(*(bus->sensors[y]->devaddr), tempC, tempF); // Use a simple function to print out the data
   #endif
     DEBUG_PRINTLN("[HTTP] begin...");
-    String url = String("http://") + HOST + ":" + PORT + "/sensors/" + bus.sensors[y].devname + "/data";
+    String url = String("http://") + HOST + ":" + PORT + "/sensors/" + bus->sensors[y]->devname + "/data";
     DEBUG_PRINTF("[HTTP] POSTing to %s\n", url.c_str());
     if (http.begin(client, url))
     {
@@ -283,7 +284,7 @@ void loop()
     unsigned long etime = timeClient.getEpochTime();
     for (int x = 0; x < numbusses; ++x)
     {
-      busses[x].bus->requestTemperatures();
+      busses[x]->bus->requestTemperatures();
     }
     DEBUG_PRINTF("\n\ntimestamp = %lu\n\n", etime);
     
