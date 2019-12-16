@@ -95,14 +95,14 @@ sensorbus *busses[] = { &busUpstairs, &busDownstairs, &busBoilerAndValve };
 
 #ifdef CLOSET
 
-devinfo nineteen = { "NINETEEN", &dev_nineteen }; // 19
-devinfo twenty = { "TWENTY", &dev_twenty }; // 20
-devinfo twentyone = { "TWENTYONE", &dev_twentyone }; // 21
-devinfo twentytwo = { "TWENTYTWO", &dev_twentytwo }; // 22
-devinfo twentythree = { "TWENTYTHREE", &dev_twentythree }; // 23
-devinfo twentyfour = { "TWENTYFOUR", &dev_twentyfour }; // 24
+devinfo office_in = { "OFFICE-IN", &dev_twentyfour }; // 24
+devinfo mbr_in = { "MBR-IN", &dev_twentytwo }; // 22
+devinfo mbath_in = { "MBATH-IN", &dev_twentythree }; // 23
+devinfo office_out = { "OFFICE-OUT", &dev_twentyone }; // 21
+devinfo mbr_out = { "MBR-OUT", &dev_twenty }; // 20
+devinfo mbath_out = { "MBATH-OUT", &dev_nineteen }; // 19
 
-devinfo *devicesCloset[] = { &nineteen, &twenty, &twentyone, &twentytwo, &twentythree, &twentyfour };
+devinfo *devicesCloset[] = { &office_in, &mbr_in, &mbath_in, &office_out, &mbr_out, &mbath_out };
 OneWire oneWireCloset(2);
 // Pass our oneWire reference to Dallas Temperature.
 DallasTemperature sensorsCloset(&oneWireCloset);
