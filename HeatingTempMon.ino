@@ -98,8 +98,8 @@ sensorbus *busses[] = { &busUpstairs, &busDownstairs, &busBoilerAndValve };
 devinfo office_in = { "OFFICE-IN", &dev_nineteen }; // 19
 devinfo mbr_in = { "MBR-IN", &dev_twenty }; // 20
 devinfo mbath_in = { "MBATH-IN", &dev_twentyone }; // 21
-devinfo office_out = { "OFFICE-OUT", &dev_twentytwo }; // 22
-devinfo mbr_out = { "MBR-OUT", &dev_twentythree }; // 23
+devinfo office_out = { "OFFICE-OUT", &dev_twentythree }; // 23
+devinfo mbr_out = { "MBR-OUT", &dev_twentytwo }; // 22
 devinfo mbath_out = { "MBATH-OUT", &dev_twentyfour }; // 24
 
 devinfo *devicesCloset[] = { &office_in, &mbr_in, &mbath_in, &office_out, &mbr_out, &mbath_out };
