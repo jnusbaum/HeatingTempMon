@@ -46,7 +46,8 @@ typedef struct {
 sensorbus;
 
 
-#define MECHROOM
+#define CLOSET
+#define DEBUG
 
 // Set up onewire and sensors
 #ifdef MECHROOM
@@ -94,29 +95,21 @@ sensorbus *busses[] = { &busUpstairs, &busDownstairs, &busBoilerAndValve };
 
 #ifdef CLOSET
 
-devinfo nineteen = { "NINETEEN", dev_nineteen }; // 19
-devinfo twenty = { "TWENTY", dev_twenty }; // 20
-devinfo twentyone = { "TWENTYONE", dev_twentyone }; // 21
-devinfo twentytwo = { "TWENTYTWO", dev_twentytwo }; // 22
-devinfo twentythree = { "TWENTYTHREE", dev_twentythree }; // 23
-devinfo twentyfour = { "TWENTYFOUR", dev_twentyfour }; // 24
-devinfo twentyfive = { "TWENTYFIVE", dev_twentyfive }; // 25
+devinfo nineteen = { "NINETEEN", &dev_nineteen }; // 19
+devinfo twenty = { "TWENTY", &dev_twenty }; // 20
+devinfo twentyone = { "TWENTYONE", &dev_twentyone }; // 21
+devinfo twentytwo = { "TWENTYTWO", &dev_twentytwo }; // 22
+devinfo twentythree = { "TWENTYTHREE", &dev_twentythree }; // 23
+devinfo twentyfour = { "TWENTYFOUR", &dev_twentyfour }; // 24
 
-devinfo devicesUpstairs[] = { kitchen_out, laundry_out, garage_out, laundry_in, garage_in, kitchen_in };
-devinfo devicesDownstairs[] = { family_out, office_out, exercise_out, guest_out, family_in, office_in, exercise_in, guest_in };
-devinfo devicesBoilerAndValve[] = { boiler_in, boiler_out, valve_insys, valve_out };
-
-numsensors = 3;
-DallasTemperature tsensors[3];
-// Setup 3 oneWire instances to communicate with temp sensors
-OneWire oneWireUpstairs(0);
-OneWire oneWireDownstairs(2);
-OneWire oneWireBoilerAndValve(4);
-
+devinfo *devicesCloset[] = { &nineteen, &twenty, &twentyone, &twentytwo, &twentythree, &twentyfour };
+OneWire oneWireCloset(2);
 // Pass our oneWire reference to Dallas Temperature.
-DallasTemperature sensorsUpstairs(&oneWireUpstairs);
-DallasTemperature sensorsDownstairs(&oneWireDownstairs);
-DallasTemperature sensorsBoilerAndValve(&oneWireBoilerAndValve);
+DallasTemperature sensorsCloset(&oneWireCloset);
+sensorbus busCloset = { 2, &sensorsCloset, 6, devicesCloset };
+
+int numbusses = 1;
+sensorbus *busses[] = { &busCloset };
 
 #endif
 
@@ -218,7 +211,7 @@ void setup() {
 }
 
 
-void processTemps(sensorbus *bus)
+void processTemps(sensorbus *bus, char *tstr)
 {
   WiFiClient client;
   HTTPClient http;
@@ -228,7 +221,7 @@ void processTemps(sensorbus *bus)
     float tempC = bus->bus->getTempC(*(bus->sensors[y]->devaddr));
     float tempF = bus->bus->toFahrenheit(tempC);
   #ifdef DEBUG
-    printTemperature(*(bus->sensors[y]->devaddr), tempC, tempF); // Use a simple function to print out the data
+    printTemperature(bus->sensors[y]->devaddr, tempC, tempF); // Use a simple function to print out the data
   #endif
     DEBUG_PRINTLN("[HTTP] begin...");
     String url = String("http://") + HOST + ":" + PORT + "/sensors/" + bus->sensors[y]->devname + "/data";
@@ -289,13 +282,13 @@ void loop()
     DEBUG_PRINTF("\n\ntimestamp = %lu\n\n", etime);
     
     DateTime ldtm(etime);
-    char buffer[] = "YYYY-MM-DD-hh-mm-ss";
-    ldtm.toString(buffer);
-    DEBUG_PRINTF("\n\ntimestr = %s\n\n", buffer);
+    char tstr[] = "YYYY-MM-DD-hh-mm-ss";
+    ldtm.toString(tstr);
+    DEBUG_PRINTF("\n\ntimestr = %s\n\n", tstr);
 
     for (int x = 0; x < numbusses; ++x)
     {
-      processTemps(busses[x]);
+      processTemps(busses[x], tstr);
     }
   }
 }
