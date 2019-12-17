@@ -17,7 +17,7 @@
 #define HOST "192.168.0.134"
 #define PORT "80"
 
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define DEBUG_PRINT(x)     Serial.print (x)
@@ -95,10 +95,10 @@ sensorbus *busses[] = { &busUpstairs, &busDownstairs, &busBoilerAndValve };
 
 #ifdef CLOSET
 
-devinfo office_in = { "OFFICE-IN", &dev_twentyfour }; // 24
+devinfo office_in = { "LIBRARY-IN", &dev_twentyfour }; // 24
 devinfo mbr_in = { "MBR-IN", &dev_twentytwo }; // 22
 devinfo mbath_in = { "MBATH-IN", &dev_twentythree }; // 23
-devinfo office_out = { "OFFICE-OUT", &dev_twentyone }; // 21
+devinfo office_out = { "LIBRARY-OUT", &dev_twentyone }; // 21
 devinfo mbr_out = { "MBR-OUT", &dev_twenty }; // 20
 devinfo mbath_out = { "MBATH-OUT", &dev_nineteen }; // 19
 
