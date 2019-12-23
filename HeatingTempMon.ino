@@ -186,6 +186,7 @@ void setup() {
   }
 #endif
 
+  WiFi.mode(WIFI_STA);
   WiFi.begin("nusbaum-24g", "we live in Park City now");
 
   for (int x = 0; x < numbusses; ++x)
