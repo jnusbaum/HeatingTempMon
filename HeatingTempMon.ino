@@ -17,7 +17,7 @@
 #define HOST "192.168.0.134"
 #define PORT "80"
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #define DEBUG_PRINT(x)     Serial.print (x)
