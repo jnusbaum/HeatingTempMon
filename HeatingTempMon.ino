@@ -15,9 +15,9 @@
 #include "DeviceAddresses.h"
 
 #define HOST "192.168.0.134"
-#define PORT "80"
+#define ROOT "/dataserver"
 
-// #define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #define DEBUG_PRINT(x)     Serial.print (x)
@@ -47,7 +47,7 @@ sensorbus;
 
 
 // set room config
-#define CLOSET
+#define MECHROOM
 
 // Set up onewire and sensors
 #ifdef MECHROOM
@@ -206,6 +206,8 @@ void setup() {
   DEBUG_PRINTLN("WiFi connected");
   DEBUG_PRINTLN("IP address: ");
   DEBUG_PRINTLN(WiFi.localIP());
+  DEBUG_PRINTLN("MAC address: ");
+  DEBUG_PRINTLN(WiFi.macAddress());
   
   timeClient.begin();
   timeClient.forceUpdate();
@@ -225,7 +227,7 @@ void processTemps(sensorbus *bus, char *tstr)
     printTemperature(bus->sensors[y]->devaddr, tempC, tempF); // Use a simple function to print out the data
   #endif
     DEBUG_PRINTLN("[HTTP] begin...");
-    String url = String("http://") + HOST + ":" + PORT + "/sensors/" + bus->sensors[y]->devname + "/data";
+    String url = String("http://") + HOST + ROOT + "/sensors/" + bus->sensors[y]->devname + "/data";
     DEBUG_PRINTF("[HTTP] POSTing to %s\n", url.c_str());
     if (http.begin(client, url))
     {
