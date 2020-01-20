@@ -7,17 +7,19 @@
 #include <Arduino.h>
 
 #include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
+#include <MQTT.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <RTClib.h>
 #include <OneWire.h>
+#include <ArduinoJson.h>
+
 #include "DeviceAddresses.h"
 
 #define HOST "192.168.0.134"
 #define ROOT "/dataserver"
 
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define DEBUG_PRINT(x)     Serial.print (x)
@@ -46,11 +48,22 @@ typedef struct {
 sensorbus;
 
 
+WiFiClient net;
+MQTTClient client;
+
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "us.pool.ntp.org", -25200, 5000000);
+
+String baseTopic = "sorrelhills/temperature/";
+
 // set room config
 #define MECHROOM
 
 // Set up onewire and sensors
 #ifdef MECHROOM
+
+const char mqtt_client_id[] = "MECHROOM";
 
 devinfo laundry_in = { "LAUNDRY-IN", &dev_one }; // 1
 devinfo kitchen_in = { "KITCHEN-IN", &dev_two }; // 2
@@ -95,6 +108,8 @@ sensorbus *busses[] = { &busUpstairs, &busDownstairs, &busBoilerAndValve };
 
 #ifdef CLOSET
 
+const char mqtt_client_id[] = "CLOSET";
+
 devinfo office_in = { "LIBRARY-IN", &dev_twentyfour }; // 24
 devinfo mbr_in = { "MBR-IN", &dev_twentytwo }; // 22
 devinfo mbath_in = { "MBATH-IN", &dev_twentythree }; // 23
@@ -113,9 +128,6 @@ sensorbus *busses[] = { &busCloset };
 
 #endif
 
-
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "us.pool.ntp.org", -25200, 5000000);
 
 #ifdef DEBUG
 
@@ -170,8 +182,30 @@ void setupDevices(sensorbus *bus)
 }
 
 
-void setup() {
+void connect() {
+  DEBUG_PRINT("Wait for WiFi... ");
+  while (WiFi.status() != WL_CONNECTED) {
+    DEBUG_PRINT(".");
+    delay(500);
+  }
+  
+  DEBUG_PRINTLN("");
+  DEBUG_PRINTLN("WiFi connected");
+  DEBUG_PRINTLN("IP address: ");
+  DEBUG_PRINTLN(WiFi.localIP());
+  DEBUG_PRINTLN("MAC address: ");
+  DEBUG_PRINTLN(WiFi.macAddress());
 
+  DEBUG_PRINT("\nconnecting to MQTT...");
+  while (!client.connect(mqtt_client_id)) {
+    DEBUG_PRINT(".");
+    delay(500);
+  }
+  DEBUG_PRINTLN("\nconnected!");
+}
+
+
+void setup() {
 #ifdef DEBUG
   Serial.begin(115200);
 
@@ -188,27 +222,16 @@ void setup() {
 
   WiFi.mode(WIFI_STA);
   WiFi.begin("nusbaum-24g", "we live in Park City now");
+  client.begin(HOST, net);
 
   for (int x = 0; x < numbusses; ++x)
   {
     busses[x]->bus->begin();
     setupDevices(busses[x]);
   }
-    
-  DEBUG_PRINT("Wait for WiFi... ");
-  
-  while (WiFi.status() != WL_CONNECTED) {
-    DEBUG_PRINT(".");
-    delay(500);
-  }
-  
-  DEBUG_PRINTLN("");
-  DEBUG_PRINTLN("WiFi connected");
-  DEBUG_PRINTLN("IP address: ");
-  DEBUG_PRINTLN(WiFi.localIP());
-  DEBUG_PRINTLN("MAC address: ");
-  DEBUG_PRINTLN(WiFi.macAddress());
-  
+
+  connect();
+
   timeClient.begin();
   timeClient.forceUpdate();
 }
@@ -216,9 +239,6 @@ void setup() {
 
 void processTemps(sensorbus *bus, char *tstr)
 {
-  WiFiClient client;
-  HTTPClient http;
-
   for (int y = 0; y < bus->numsensors; ++y)
   {
     float tempC = bus->bus->getTempC(*(bus->sensors[y]->devaddr));
@@ -226,41 +246,17 @@ void processTemps(sensorbus *bus, char *tstr)
   #ifdef DEBUG
     printTemperature(bus->sensors[y]->devaddr, tempC, tempF); // Use a simple function to print out the data
   #endif
-    DEBUG_PRINTLN("[HTTP] begin...");
-    String url = String("http://") + HOST + ROOT + "/sensors/" + bus->sensors[y]->devname + "/data";
-    DEBUG_PRINTF("[HTTP] POSTing to %s\n", url.c_str());
-    if (http.begin(client, url))
-    {
-      // HTTP
-      DEBUG_PRINTLN("[HTTP] POST...");
-      http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-      String data = String("value-real=") + String(tempF, 2) + String("&") + String("timestamp=") + tstr;
-      // start connection and send HTTP header
-      int httpCode = http.POST(data);
-  
-      // httpCode will be negative on error
-      if (httpCode > 0)
-      {
-        // HTTP header has been send and Server response header has been handled
-        DEBUG_PRINTF("[HTTP] POST... code: %d\n", httpCode);
-  
-        // file found at server
-        if (httpCode != HTTP_CODE_CREATED)
-        {
-          DEBUG_PRINTF("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
-        }
-      }
-      else
-      {
-        DEBUG_PRINTF("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
-      }
-  
-      http.end();
-    }
-    else
-    {
-      DEBUG_PRINTLN("[HTTP} Unable to connect");
-    }
+
+    StaticJsonDocument<128> doc;
+    doc["sensor"] = bus->sensors[y]->devname;
+    doc["timestamp"] = tstr;
+    doc["value"] = tempF;
+    // Generate the minified JSON and put it in buffer.
+    String topic = baseTopic + bus->sensors[y]->devname;
+    char buffer[128];
+    int n = serializeJson(doc, buffer);
+    DEBUG_PRINTF("[MQTT] PUBLISHing to %s\n", topic.c_str());
+    client.publish(topic.c_str(), buffer, n);
   }
 }
 
@@ -270,6 +266,13 @@ unsigned long previousMillis = 0;
 
 void loop() 
 {
+  client.loop();
+
+  if (!client.connected()) 
+  {
+    connect();
+  }
+  
   unsigned long currentMillis = millis();
 
   if (currentMillis - previousMillis > period)
@@ -285,7 +288,7 @@ void loop()
     DEBUG_PRINTF("\n\ntimestamp = %lu\n\n", etime);
     
     DateTime ldtm(etime);
-    char tstr[] = "YYYY-MM-DD-hh-mm-ss";
+    char tstr[] = "YYYY-MM-DDThh:mm:ss";
     ldtm.toString(tstr);
     DEBUG_PRINTF("\n\ntimestr = %s\n\n", tstr);
 
