@@ -17,7 +17,6 @@
 #include "DeviceAddresses.h"
 
 #define HOST "192.168.0.134"
-#define ROOT "/dataserver"
 
 #define DEBUG
 
