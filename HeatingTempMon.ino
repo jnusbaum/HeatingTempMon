@@ -267,16 +267,13 @@ unsigned long previousMillis = 0;
 void loop() 
 {
   client.loop();
-
-  if (!client.connected()) 
-  {
-    connect();
-  }
   
   unsigned long currentMillis = millis();
 
   if (currentMillis - previousMillis > period)
   {
+    if (!client.connected()) connect();
+
     previousMillis = currentMillis;
 
     // call sensors.requestTemperatures() to issue a global temperature
