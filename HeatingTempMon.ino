@@ -13,10 +13,10 @@
 #include <RTClib.h>
 #include <OneWire.h>
 #include <ArduinoJson.h>
+#include <DallasTemperature.h>
 
-#include "DeviceAddresses.h"
-
-#define HOST "192.168.0.134"
+#define DEVICENAME "TEST";
+#define MQTTHOST "192.168.0.134"
 
 #define DEBUG
 
@@ -32,119 +32,66 @@
 
 // device addresses
 typedef struct {
-  String devname;
-  DeviceAddress *devaddr;
+  char devname[64];
+  DeviceAddress devaddr;
 }
 devinfo;
 
 // temp sensor buss
 typedef struct {
   int pin;
+  OneWire *wire;
   DallasTemperature *bus;
   int numsensors;
-  devinfo **sensors;
+  devinfo *sensors;
 }
 sensorbus;
 
 
 WiFiClient net;
-MQTTClient client;
+MQTTClient client(4096);
 
+String mqtt_client_id;
+String baseTopic = "sorrelhills/";
+String tempTopic = baseTopic + "temperature/";
+String configRequestTopic = baseTopic + "device/config-request/" + DEVICENAME;
+String configReceiveTopic = baseTopic + "device/config/" + DEVICENAME;
+int numbusses = 0;
+sensorbus *busses = nullptr;
+bool configured = false;
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "us.pool.ntp.org", -25200, 5000000);
 
-String baseTopic = "sorrelhills/temperature/";
 
-// set room config
-#define MECHROOM
-
-// Set up onewire and sensors
-#ifdef MECHROOM
-
-const char mqtt_client_id[] = "MECHROOM";
-
-devinfo laundry_in = { "LAUNDRY-IN", &dev_one }; // 1
-devinfo kitchen_in = { "KITCHEN-IN", &dev_two }; // 2
-devinfo garage_in = { "GARAGE-IN", &dev_three }; // 3
-devinfo kitchen_out = { "KITCHEN-OUT", &dev_four }; // 4
-devinfo garage_out = { "GARAGE-OUT", &dev_five }; // 5
-devinfo laundry_out = { "LAUNDRY-OUT", &dev_six }; // 6
-devinfo valve_out = { "VALVE-OUT", &dev_seven }; // 7
-devinfo valve_insys = { "VALVE-INSYS", &dev_eight }; // 8
-devinfo boiler_out = { "BOILER-OUT", &dev_nine }; // 9
-devinfo boiler_in = { "BOILER-IN", &dev_ten }; // 10
-devinfo family_out = { "FAMILY-OUT", &dev_eleven }; // 11
-devinfo office_out = { "OFFICE-OUT", &dev_twelve }; // 12
-devinfo exercise_out = { "EXERCISE-OUT", &dev_thirteen }; // 13
-devinfo guest_out = { "GUEST-OUT", &dev_fourteen }; // 14
-devinfo family_in = { "FAMILY-IN", &dev_fifteen }; // 15
-devinfo office_in = { "OFFICE-IN", &dev_sixteen }; // 16
-devinfo exercise_in = { "EXERCISE-IN", &dev_seventeen }; // 17
-devinfo guest_in = { "GUEST-IN", &dev_eighteen }; // 18
-
-devinfo *devicesUpstairs[] = { &kitchen_out, &laundry_out, &garage_out, &laundry_in, &garage_in, &kitchen_in };
-OneWire oneWireUpstairs(0);
-DallasTemperature sensorsUpstairs(&oneWireUpstairs);
-sensorbus busUpstairs = { 0, &sensorsUpstairs, 6, devicesUpstairs };
-
-devinfo *devicesDownstairs[] = { &family_out, &office_out, &exercise_out, &guest_out, &family_in, &office_in, &exercise_in, &guest_in };
-OneWire oneWireDownstairs(2);
-DallasTemperature sensorsDownstairs(&oneWireDownstairs);
-sensorbus busDownstairs = { 2, &sensorsDownstairs, 8, devicesDownstairs };
-
-devinfo *devicesBoilerAndValve[] = { &boiler_in, &boiler_out, &valve_insys, &valve_out };
-OneWire oneWireBoilerAndValve(4);
-DallasTemperature sensorsBoilerAndValve(&oneWireBoilerAndValve);
-sensorbus busBoilerAndValve = { 4, &sensorsBoilerAndValve, 4, devicesBoilerAndValve };
-
-int numbusses = 3;
-sensorbus *busses[] = { &busUpstairs, &busDownstairs, &busBoilerAndValve };
-
-#endif
-
-
-
-#ifdef CLOSET
-
-const char mqtt_client_id[] = "CLOSET";
-
-devinfo office_in = { "LIBRARY-IN", &dev_twentyfour }; // 24
-devinfo mbr_in = { "MBR-IN", &dev_twentytwo }; // 22
-devinfo mbath_in = { "MBATH-IN", &dev_twentythree }; // 23
-devinfo office_out = { "LIBRARY-OUT", &dev_twentyone }; // 21
-devinfo mbr_out = { "MBR-OUT", &dev_twenty }; // 20
-devinfo mbath_out = { "MBATH-OUT", &dev_nineteen }; // 19
-
-devinfo *devicesCloset[] = { &office_in, &mbr_in, &mbath_in, &office_out, &mbr_out, &mbath_out };
-OneWire oneWireCloset(2);
-// Pass our oneWire reference to Dallas Temperature.
-DallasTemperature sensorsCloset(&oneWireCloset);
-sensorbus busCloset = { 2, &sensorsCloset, 6, devicesCloset };
-
-int numbusses = 1;
-sensorbus *busses[] = { &busCloset };
-
-#endif
-
+void parseAddress(DeviceAddress &daddress, const char *caddress) {
+  daddress[0] = (uint8_t)strtoul(caddress, nullptr, 16);
+  daddress[1] = (uint8_t)strtoul(caddress+6, nullptr, 16);
+  daddress[2] = (uint8_t)strtoul(caddress+12, nullptr, 16);
+  daddress[3] = (uint8_t)strtoul(caddress+18, nullptr, 16);
+  daddress[4] = (uint8_t)strtoul(caddress+24, nullptr, 16);
+  daddress[5] = (uint8_t)strtoul(caddress+30, nullptr, 16);
+  daddress[6] = (uint8_t)strtoul(caddress+36, nullptr, 16);
+  daddress[7] = (uint8_t)strtoul(caddress+42, nullptr, 16);
+}
 
 #ifdef DEBUG
 
 // function to print a device address
 // only called when DEBUG
-void printAddress(DeviceAddress *deviceAddress)
+void printAddress(DeviceAddress &deviceAddress)
 {
   for (uint8_t i = 0; i < 8; i++)
   {
-    if ((*deviceAddress)[i] < 16) Serial.print("0");
-    Serial.print((*deviceAddress)[i], HEX);
+    if (deviceAddress[i] < 16) Serial.print("0");
+    Serial.print(deviceAddress[i], HEX);
   }
 }
 
 
 // function to print the temperature for a device
 // only called when DEBUG
-void printTemperature(DeviceAddress *d, float tempC, float tempF)
+void printTemperature(DeviceAddress &d, float tempC, float tempF)
 {
   Serial.print("Temp for Address: ");
   printAddress(d);
@@ -159,25 +106,83 @@ void printTemperature(DeviceAddress *d, float tempC, float tempF)
 #endif
 
 
-void setupDevices(sensorbus *bus)
+void setupDevices(sensorbus &bus)
 {
-  for (int y = 0; y < bus->numsensors; ++y)
+  bus.bus->begin();
+  for (int y = 0; y < bus.numsensors; ++y)
   {
   #ifdef DEBUG
     Serial.print("Device Address: ");
-    printAddress(bus->sensors[y]->devaddr);
+    printAddress(bus.sensors[y].devaddr);
     Serial.println();
   #endif
 
     // set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
-    bus->bus->setResolution(*(bus->sensors[y]->devaddr), 9);
+    bus.bus->setResolution(bus.sensors[y].devaddr, 9);
 
   #ifdef DEBUG
     Serial.print("Device Resolution: ");
-    Serial.print(bus->bus->getResolution(*(bus->sensors[y]->devaddr)), DEC);
+    Serial.print(bus.bus->getResolution(bus.sensors[y].devaddr), DEC);
     Serial.println();
   #endif
   }
+}
+
+
+void configReceived(String &topic, String &payload) {
+  DEBUG_PRINTLN("incoming config: " + topic + " - " + payload);
+  DynamicJsonDocument doc(4096);
+
+  // shutdown and free existing config here
+  for (int x = 0; x < numbusses; ++x) {
+    free(busses[x].sensors);
+    delete busses[x].bus;
+    delete busses[x].wire; 
+  }
+  if (busses) free(busses);
+    
+  // create new config and setup
+  DeserializationError error = deserializeJson(doc, payload.c_str());
+  DEBUG_PRINTLN(String("deserialization result: ") + error.c_str());
+  mqtt_client_id = doc["client_id"].as<const char*>();
+  DEBUG_PRINTLN(String("client id: ") + mqtt_client_id);
+  numbusses = doc["num_interfaces"];
+  DEBUG_PRINTLN(String("number of interfaces: ") + numbusses);
+  busses = (sensorbus *)malloc(sizeof(sensorbus) * numbusses);
+  JsonArray interfaces = doc["interfaces"].as<JsonArray>();
+  for (int x = 0; x < numbusses; ++x) {
+    JsonObject jbus = interfaces[x];
+    const int pin_number = jbus["pin_number"];
+    DEBUG_PRINTLN(String("pin number: ") + pin_number);
+    const int num_sensors = jbus["num_sensors"];
+    DEBUG_PRINTLN(String("number of sensors: ") + num_sensors);
+    busses[x].pin = pin_number;
+    busses[x].wire = new OneWire(pin_number);
+    busses[x].bus = new DallasTemperature(busses[x].wire);
+    busses[x].numsensors = num_sensors;
+    busses[x].sensors = (devinfo *)malloc(sizeof(devinfo) * num_sensors);
+    JsonArray sensors = jbus["sensors"].as<JsonArray>();
+    for (int y = 0; y < num_sensors; ++y) {
+      JsonObject jsensor = sensors[y];
+      strcpy(busses[x].sensors[y].devname, jsensor["name"].as<const char*>());
+      DEBUG_PRINTLN(String("sensor name: ") + busses[x].sensors[y].devname);
+      // parse string into device address
+      const char *daddress = jsensor["address"].as<const char*>();
+      DEBUG_PRINTLN(String("sensor address: ") + daddress);
+      parseAddress(busses[x].sensors[y].devaddr, daddress);
+    }
+    setupDevices(busses[x]);
+  }
+
+  configured = true;
+}
+
+
+void req_configure() {
+  DEBUG_PRINTLN("configuring...");
+  configured = false;
+  client.publish(configRequestTopic.c_str());
+  DEBUG_PRINTLN("config requested");
 }
 
 
@@ -196,11 +201,14 @@ void connect() {
   DEBUG_PRINTLN(WiFi.macAddress());
 
   DEBUG_PRINT("\nconnecting to MQTT...");
-  while (!client.connect(mqtt_client_id)) {
+  while (!client.connect(mqtt_client_id.c_str())) {
     DEBUG_PRINT(".");
     delay(500);
   }
   DEBUG_PRINTLN("\nconnected!");
+  
+  client.subscribe(configReceiveTopic.c_str());
+  DEBUG_PRINTLN(String("subscribed to ") + configReceiveTopic);
 }
 
 
@@ -221,37 +229,36 @@ void setup() {
 
   WiFi.mode(WIFI_STA);
   WiFi.begin("nusbaum-24g", "we live in Park City now");
-  client.begin(HOST, net);
+  client.begin(MQTTHOST, net);
+  client.onMessage(configReceived);
 
-  for (int x = 0; x < numbusses; ++x)
-  {
-    busses[x]->bus->begin();
-    setupDevices(busses[x]);
-  }
+
 
   connect();
 
   timeClient.begin();
   timeClient.forceUpdate();
+
+  req_configure();
 }
 
 
-void processTemps(sensorbus *bus, char *tstr)
+void processTemps(sensorbus &bus, char *tstr)
 {
-  for (int y = 0; y < bus->numsensors; ++y)
+  for (int y = 0; y < bus.numsensors; ++y)
   {
-    float tempC = bus->bus->getTempC(*(bus->sensors[y]->devaddr));
-    float tempF = bus->bus->toFahrenheit(tempC);
+    float tempC = bus.bus->getTempC(bus.sensors[y].devaddr);
+    float tempF = bus.bus->toFahrenheit(tempC);
   #ifdef DEBUG
-    printTemperature(bus->sensors[y]->devaddr, tempC, tempF); // Use a simple function to print out the data
+    printTemperature(bus.sensors[y].devaddr, tempC, tempF); // Use a simple function to print out the data
   #endif
 
     StaticJsonDocument<128> doc;
-    doc["sensor"] = bus->sensors[y]->devname;
+    doc["sensor"] = bus.sensors[y].devname;
     doc["timestamp"] = tstr;
     doc["value"] = tempF;
     // Generate the minified JSON and put it in buffer.
-    String topic = baseTopic + bus->sensors[y]->devname;
+    String topic = tempTopic + bus.sensors[y].devname;
     char buffer[128];
     int n = serializeJson(doc, buffer);
     DEBUG_PRINTF("[MQTT] PUBLISHing to %s\n", topic.c_str());
@@ -266,6 +273,7 @@ unsigned long previousMillis = 0;
 void loop() 
 {
   client.loop();
+  delay(10);
   
   unsigned long currentMillis = millis();
 
@@ -279,7 +287,7 @@ void loop()
     unsigned long etime = timeClient.getEpochTime();
     for (int x = 0; x < numbusses; ++x)
     {
-      busses[x]->bus->requestTemperatures();
+      busses[x].bus->requestTemperatures();
     }
     DEBUG_PRINTF("\n\ntimestamp = %lu\n\n", etime);
     
