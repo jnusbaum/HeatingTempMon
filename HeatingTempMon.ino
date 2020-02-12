@@ -30,22 +30,23 @@
 #define DEBUG_PRINTLN(x)
 #endif
 
-// device addresses
-typedef struct {
-  char devname[64];
-  DeviceAddress devaddr;
-}
-devinfo;
+Class TempSensor {
+    char devname[64];
+    DeviceAddress devaddr;
+  public:
 
-// temp sensor buss
-typedef struct {
-  int pin;
-  OneWire *wire;
-  DallasTemperature *bus;
-  int numsensors;
-  devinfo *sensors;
-}
-sensorbus;
+};
+
+
+class SensorBus {
+    int pin;
+    OneWire *wire;
+    DallasTemperature *bus;
+    int numsensors;
+    TempSensor *sensors;
+  public:
+
+};
 
 
 WiFiClient net;
@@ -57,7 +58,7 @@ String tempTopic = baseTopic + "temperature/";
 String configRequestTopic = baseTopic + "device/config-request/" + DEVICENAME;
 String configReceiveTopic = baseTopic + "device/config/" + DEVICENAME;
 int numbusses = 0;
-sensorbus *busses = nullptr;
+SensorBus *busses = nullptr;
 bool configured = false;
 
 WiFiUDP ntpUDP;
@@ -139,7 +140,7 @@ void configReceived(String &topic, String &payload) {
     delete busses[x].bus;
     delete busses[x].wire; 
   }
-  if (busses) free(busses);
+  if (busses) delete [] busses;
     
   // create new config and setup
   DeserializationError error = deserializeJson(doc, payload.c_str());
@@ -148,7 +149,7 @@ void configReceived(String &topic, String &payload) {
   DEBUG_PRINTLN(String("client id: ") + mqtt_client_id);
   numbusses = doc["num_interfaces"];
   DEBUG_PRINTLN(String("number of interfaces: ") + numbusses);
-  busses = (sensorbus *)malloc(sizeof(sensorbus) * numbusses);
+  busses = new SensorBus[numbusses];
   JsonArray interfaces = doc["interfaces"].as<JsonArray>();
   for (int x = 0; x < numbusses; ++x) {
     JsonObject jbus = interfaces[x];
@@ -160,7 +161,7 @@ void configReceived(String &topic, String &payload) {
     busses[x].wire = new OneWire(pin_number);
     busses[x].bus = new DallasTemperature(busses[x].wire);
     busses[x].numsensors = num_sensors;
-    busses[x].sensors = (devinfo *)malloc(sizeof(devinfo) * num_sensors);
+    busses[x].sensors =r *)malloc(sizeor) * num_sensors);
     JsonArray sensors = jbus["sensors"].as<JsonArray>();
     for (int y = 0; y < num_sensors; ++y) {
       JsonObject jsensor = sensors[y];
