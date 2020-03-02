@@ -15,7 +15,7 @@
 #include <ArduinoJson.h>
 #include <DallasTemperature.h>
 
-#define DEVICENAME "TEST";
+#define DEVICENAME "MECHROOM";
 #define MQTTHOST "192.168.0.134"
 
 #define DEBUG
@@ -31,10 +31,8 @@
 #endif
 
 
-
 WiFiClient net;
 MQTTClient client(4096);
-
 
 
 String mqtt_client_id;
@@ -306,7 +304,7 @@ void setup() {
   Serial.println();
 
   for (uint8_t t = 4; t > 0; t--) {
-    DEBUG_PRINTF("[SETUP] WAIT %d...\n", t);
+    Serial.printf("[SETUP] WAIT %d...\n", t);
     Serial.flush();
     delay(1000);
   }
