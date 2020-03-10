@@ -10,12 +10,11 @@
 #include <MQTT.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
-#include <RTClib.h>
 #include <OneWire.h>
 #include <ArduinoJson.h>
 #include <DallasTemperature.h>
 
-#define DEVICENAME "MECHROOM";
+#define DEVICENAME "TEST";
 #define MQTTHOST "192.168.0.134"
 
 #define DEBUG
@@ -42,28 +41,16 @@ String statusTopic = baseTopic + "device/status/" + DEVICENAME;
 String configRequestTopic = baseTopic + "device/config-request/" + DEVICENAME;
 String configReceiveTopic = baseTopic + "device/config/" + DEVICENAME;
 bool configured = false;
-String isofmtstr = "YYYY-MM-DDThh:mm:ss";
 
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "us.pool.ntp.org", -25200, 5000000);
-
-// get current time as iso format string
-void getCurrentTime(char *tstr) 
-{
-  unsigned long etime = timeClient.getEpochTime();
-  strcpy(tstr, isofmtstr.c_str());
-  DateTime ldtm(etime);
-  ldtm.toString(tstr);
-}
+NTPClient timeClient(ntpUDP, "us.pool.ntp.org");
 
 
 void publishStatus(const char *statusstr)
 {
   StaticJsonDocument<128> doc;
-  char tstr[isofmtstr.length()];
-  getCurrentTime(tstr);
   doc["status"] = statusstr;
-  doc["timestamp"] = tstr;
+  doc["timestamp"] = timeClient.getEpochTime();;
   char buffer[128];
   int n = serializeJson(doc, buffer);
   DEBUG_PRINTF("[MQTT] PUBLISHing to %s\n", statusTopic.c_str());
@@ -184,7 +171,7 @@ class SensorBus {
       bus->requestTemperatures();
     }
 
-    void processTemps(char *tstr) {
+    void processTemps(unsigned long etime) {
       for (int y = 0; y < numsensors; ++y)
       {
         float tempC = bus->getTempC(sensors[y].device_address());
@@ -195,7 +182,7 @@ class SensorBus {
 
         StaticJsonDocument<128> doc;
         doc["sensor"] = sensors[y].device_name();
-        doc["timestamp"] = tstr;
+        doc["timestamp"] = etime;
         doc["value"] = tempF;
         // Generate the minified JSON and put it in buffer.
         String topic = tempTopic + sensors[y].device_name();
@@ -347,20 +334,21 @@ void loop()
       publishStatus("RECONNECTED");
     }
 
+    timeClient.update();
+
     previousMillis = currentMillis;
 
-    char tstr[isofmtstr.length()];
-    getCurrentTime(tstr);
+    unsigned long etime = timeClient.getEpochTime();
     for (int x = 0; x < numbusses; ++x)
     {
       busses[x].requestTemps();
     }
-    DEBUG_PRINTF("timestr = %s\n", tstr);
+    DEBUG_PRINTF("time = %u\n", etime);
     delay(500);
     
     for (int x = 0; x < numbusses; ++x)
     {
-      busses[x].processTemps(tstr);
+      busses[x].processTemps(etime);
     }
     publishStatus("RUNNING");
   }
