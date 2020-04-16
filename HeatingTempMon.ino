@@ -1,4 +1,4 @@
-#/*
+/*
   Name:		HeatingTempMon.ino
   Created:	10/28/2019 2:46:05 PM
   Author:	nusbaum
@@ -94,6 +94,7 @@ void printTemperature(DeviceAddress &d, float tempC, float tempF)
 class TempSensor {
     char devname[64];
     DeviceAddress devaddr;
+    float temp;
 
   public:
     void initialize(const char *i_devname, const char *i_daddress) {
@@ -106,6 +107,7 @@ class TempSensor {
       devaddr[5] = (uint8_t)strtoul(i_daddress+30, nullptr, 16);
       devaddr[6] = (uint8_t)strtoul(i_daddress+36, nullptr, 16);
       devaddr[7] = (uint8_t)strtoul(i_daddress+42, nullptr, 16);
+      temp = 0.0;
     }
 
     const char *device_name() {
@@ -114,6 +116,14 @@ class TempSensor {
 
     DeviceAddress &device_address() {
       return devaddr;
+    }
+
+    float temp() {
+      return temp;
+    }
+
+    float setTemp(float t) {
+      temp = t;
     }
 };
 
@@ -176,6 +186,7 @@ class SensorBus {
       {
         float tempC = bus->getTempC(sensors[y].device_address());
         float tempF = bus->toFahrenheit(tempC);
+        sensors[y].setTemp(tempF);
       #ifdef DEBUG
         printTemperature(sensors[y].device_address(), tempC, tempF); // Use a simple function to print out the data
       #endif
@@ -338,18 +349,21 @@ void loop()
 
     previousMillis = currentMillis;
 
-    unsigned long etime = timeClient.getEpochTime();
-    for (int x = 0; x < numbusses; ++x)
+    if (configured) // if we aren't configured yet then skip processing
     {
-      busses[x].requestTemps();
+      unsigned long etime = timeClient.getEpochTime();
+      for (int x = 0; x < numbusses; ++x)
+      {
+        busses[x].requestTemps();
+      }
+      DEBUG_PRINTF("time = %u\n", etime);
+      delay(500);
+      
+      for (int x = 0; x < numbusses; ++x)
+      {
+        busses[x].processTemps(etime);
+      }
+      publishStatus("RUNNING");
     }
-    DEBUG_PRINTF("time = %u\n", etime);
-    delay(500);
-    
-    for (int x = 0; x < numbusses; ++x)
-    {
-      busses[x].processTemps(etime);
-    }
-    publishStatus("RUNNING");
   }
 }
