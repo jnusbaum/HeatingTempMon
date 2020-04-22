@@ -14,7 +14,7 @@
 #include <ArduinoJson.h>
 #include <DallasTemperature.h>
 
-#define DEVICENAME "TEST";
+#define DEVICENAME "TEST"
 #define MQTTHOST "192.168.0.134"
 
 #define DEBUG
