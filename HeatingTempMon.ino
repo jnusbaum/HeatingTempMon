@@ -139,7 +139,7 @@ void setup() {
 }
 
 
-int period = PERIOD;
+unsigned long period = PERIOD;
 unsigned long previousMillis = 0;
 
 void loop() 
@@ -166,7 +166,7 @@ void loop()
     {
       busses[x].requestTemps();
     }
-    DEBUG_PRINTF("time = %u\n", etime);
+    DEBUG_PRINTF("time = %lu\n", etime);
     delay(500);
     
     for (int x = 0; x < numbusses; ++x)
