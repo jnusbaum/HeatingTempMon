@@ -1,18 +1,11 @@
 #ifndef Defines_h
 #define Defines_h
 
-#define DEVICENAME "CIRC";
+#define DEVICENAME "TEST";
 #define MQTTHOST "192.168.0.134"
 
-// 10 minutes                                                                   
-#define MIN_RUN_TIME 300000
 // temp check interval                                                          
 #define PERIOD 10000
-
-#define HIGH_POINT 125
-#define LOW_POINT 110
-
-#define RELAY HWPUMP
 
 #define DEBUG
 

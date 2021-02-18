@@ -1,3 +1,6 @@
+#ifndef SensorBus_h
+#define SensorBus_h
+
 // device addresses
 typedef struct {
   char devname[64];
@@ -14,3 +17,5 @@ typedef struct {
   devinfo *sensors;
 }
 sensorbus;
+
+#endif

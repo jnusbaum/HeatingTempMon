@@ -10,205 +10,31 @@
 #include <MQTT.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
-#include <OneWire.h>
 #include <ArduinoJson.h>
-#include <DallasTemperature.h>
 
-#define DEVICENAME "TEST";
-#define MQTTHOST "192.168.0.134"
+#include "Defines.h"
+#include "Status.h"
+#include "Constants.h"
+#include "DeviceAddresses.h"
+#include "TempSensor.h"
 
 #define DEBUG
-
-#ifdef DEBUG
-#define DEBUG_PRINT(x)     Serial.print (x)
-#define DEBUG_PRINTF(x, y)     Serial.printf (x, y)
-#define DEBUG_PRINTLN(x)  Serial.println (x)
-#else
-#define DEBUG_PRINT(x)
-#define DEBUG_PRINTF(x, y)
-#define DEBUG_PRINTLN(x)
-#endif
-
 
 WiFiClient net;
 MQTTClient client(4096);
 
-
 String mqtt_client_id;
-String baseTopic = "sorrelhills/";
-String tempTopic = baseTopic + "temperature/";
-String statusTopic = baseTopic + "device/status/" + DEVICENAME;
-String configRequestTopic = baseTopic + "device/config-request/" + DEVICENAME;
-String configReceiveTopic = baseTopic + "device/config/" + DEVICENAME;
 bool configured = false;
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "us.pool.ntp.org");
 
-
-void publishStatus(const char *statusstr)
-{
-  StaticJsonDocument<128> doc;
-  doc["status"] = statusstr;
-  doc["timestamp"] = timeClient.getEpochTime();;
-  char buffer[128];
-  int n = serializeJson(doc, buffer);
-  DEBUG_PRINTF("[MQTT] PUBLISHing to %s\n", statusTopic.c_str());
-  client.publish(statusTopic.c_str(), buffer, n);
-  DEBUG_PRINTLN("Published.");
-}
-
-
-#ifdef DEBUG
-
-// function to print a device address
-// only called when DEBUG
-void printAddress(DeviceAddress &deviceAddress)
-{
-  for (uint8_t i = 0; i < 8; i++)
-  {
-    if (deviceAddress[i] < 16) Serial.print("0");
-    Serial.print(deviceAddress[i], HEX);
-  }
-}
-
-
-// function to print the temperature for a device
-// only called when DEBUG
-void printTemperature(DeviceAddress &d, float tempC, float tempF)
-{
-  Serial.print("Temp for Address: ");
-  printAddress(d);
-  Serial.println();
-
-  Serial.print("Temp C: ");
-  Serial.print(tempC);
-  Serial.print(" Temp F: ");
-  Serial.println(tempF);
-}
-
-#endif
-
-
-
-class TempSensor {
-    char devname[64];
-    DeviceAddress devaddr;
-
-  public:
-    void initialize(const char *i_devname, const char *i_daddress) {
-      strcpy(devname, i_devname);
-      devaddr[0] = (uint8_t)strtoul(i_daddress, nullptr, 16);
-      devaddr[1] = (uint8_t)strtoul(i_daddress+6, nullptr, 16);
-      devaddr[2] = (uint8_t)strtoul(i_daddress+12, nullptr, 16);
-      devaddr[3] = (uint8_t)strtoul(i_daddress+18, nullptr, 16);
-      devaddr[4] = (uint8_t)strtoul(i_daddress+24, nullptr, 16);
-      devaddr[5] = (uint8_t)strtoul(i_daddress+30, nullptr, 16);
-      devaddr[6] = (uint8_t)strtoul(i_daddress+36, nullptr, 16);
-      devaddr[7] = (uint8_t)strtoul(i_daddress+42, nullptr, 16);
-    }
-
-    const char *device_name() {
-      return devname;
-    }
-
-    DeviceAddress &device_address() {
-      return devaddr;
-    }
-};
-
-
-class SensorBus {
-    int pin;
-    OneWire *wire;
-    DallasTemperature *bus;
-    int numsensors;
-    TempSensor *sensors;
-
-  public:
-    SensorBus() {
-      pin = 0;
-      wire = nullptr;
-      bus = nullptr;
-      numsensors = 0;
-      sensors = nullptr;
-    }
-
-    void initialize(const int i_pin, const int i_numsensors) {
-      pin = i_pin;
-      wire = new OneWire(pin);
-      bus = new DallasTemperature(wire);
-      numsensors = i_numsensors;
-      sensors = new TempSensor[numsensors];
-    }
-
-    void initsensor(const int i_sensoridx, const char *i_devname, const char *i_daddress) {
-      sensors[i_sensoridx].initialize(i_devname, i_daddress);
-    }
-
-    void begin() {
-      bus->begin();
-      for (int y = 0; y < numsensors; ++y)
-      {
-        #ifdef DEBUG
-        Serial.print("Device Address: ");
-        printAddress(sensors[y].device_address());
-        Serial.println();
-        #endif
-
-        // set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
-        bus->setResolution(sensors[y].device_address(), 9);
-
-        #ifdef DEBUG
-        Serial.print("Device Resolution: ");
-        Serial.print(bus->getResolution(sensors[y].device_address()), DEC);
-        Serial.println();
-        #endif
-      }
-    }
-
-    void requestTemps() {
-      bus->requestTemperatures();
-    }
-
-    void processTemps(unsigned long etime) {
-      for (int y = 0; y < numsensors; ++y)
-      {
-        float tempC = bus->getTempC(sensors[y].device_address());
-        float tempF = bus->toFahrenheit(tempC);
-      #ifdef DEBUG
-        printTemperature(sensors[y].device_address(), tempC, tempF); // Use a simple function to print out the data
-      #endif
-
-        StaticJsonDocument<128> doc;
-        doc["sensor"] = sensors[y].device_name();
-        doc["timestamp"] = etime;
-        doc["value"] = tempF;
-        // Generate the minified JSON and put it in buffer.
-        String topic = tempTopic + sensors[y].device_name();
-        char buffer[128];
-        int n = serializeJson(doc, buffer);
-        DEBUG_PRINTF("[MQTT] PUBLISHing to %s\n", topic.c_str());
-        client.publish(topic.c_str(), buffer, n);
-      }
-    }
-
-    ~SensorBus() {
-      delete [] sensors;
-      delete bus;
-      delete wire;
-    }
-
-};
-
-
 int numbusses = 0;
 SensorBus *busses = nullptr;
 
-
 void configReceived(String &topic, String &payload) {
   DEBUG_PRINTLN("incoming config: " + topic + " - " + payload);
-  publishStatus("CONFIG RECEIVED");
+  publishStatus(client, timeClient, "CONFIG RECEIVED");
   DynamicJsonDocument doc(4096);
 
   // shutdown and free existing config here
@@ -220,14 +46,15 @@ void configReceived(String &topic, String &payload) {
   mqtt_client_id = doc["client_id"].as<const char*>();
   DEBUG_PRINTLN(String("client id: ") + mqtt_client_id);
   numbusses = doc["num_interfaces"];
+ 
   DEBUG_PRINTLN(String("number of interfaces: ") + numbusses);
   busses = new SensorBus[numbusses];
   JsonArray interfaces = doc["interfaces"].as<JsonArray>();
   for (int x = 0; x < numbusses; ++x) {
     JsonObject jbus = interfaces[x];
-    const int pin_number = jbus["pin_number"];
+    int pin_number = jbus["pin_number"];
     DEBUG_PRINTLN(String("pin number: ") + pin_number);
-    const int num_sensors = jbus["num_sensors"];
+    const int num_sensors = jbus["num_devices"];
     DEBUG_PRINTLN(String("number of sensors: ") + num_sensors);
     busses[x].initialize(pin_number, num_sensors);
     JsonArray sensors = jbus["sensors"].as<JsonArray>();
@@ -237,13 +64,12 @@ void configReceived(String &topic, String &payload) {
       DEBUG_PRINTLN(String("sensor name: ") + devname);
       const char *daddress = jsensor["address"].as<const char*>();
       DEBUG_PRINTLN(String("sensor address: ") + daddress);
-      busses[x].initsensor(y, devname, daddress);
+      busses[x].initsensor(x, devname, daddress);
     }
     busses[x].begin();
   }
-
   configured = true;
-  publishStatus("CONFIGURED");
+  publishStatus(client, timeClient, "CONFIGURED");
 }
 
 
@@ -252,7 +78,7 @@ void req_configure() {
   configured = false;
   client.publish(configRequestTopic.c_str());
   DEBUG_PRINTLN("config requested");
-  publishStatus("CONFIG REQUESTED");
+  publishStatus(client, timeClient, "CONFIG REQUESTED");
 }
 
 
@@ -307,16 +133,13 @@ void setup() {
   timeClient.begin();
   timeClient.forceUpdate();
 
-  publishStatus("STARTING");
+  publishStatus(client, timeClient, "STARTING");
 
   req_configure();
 }
 
 
-
-
-
-int period = 10000;
+int period = PERIOD;
 unsigned long previousMillis = 0;
 
 void loop() 
@@ -331,7 +154,7 @@ void loop()
     if (!client.connected()) 
     {
       connect();
-      publishStatus("RECONNECTED");
+      publishStatus(client, timeClient, "RECONNECTED");
     }
 
     timeClient.update();
@@ -348,8 +171,8 @@ void loop()
     
     for (int x = 0; x < numbusses; ++x)
     {
-      busses[x].processTemps(etime);
+      busses[x].processTemps();
     }
-    publishStatus("RUNNING");
+    publishStatus(client, timeClient, "RUNNING");
   }
 }

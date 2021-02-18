@@ -1,4 +1,37 @@
+#ifndef DeviceAddresses_h
+#define DeviceAddresses_h
+
 #include <DallasTemperature.h>
+
+#ifdef DEBUG
+
+// function to print a device address
+// only called when DEBUG
+void printAddress(DeviceAddress &deviceAddress)
+{
+  for (uint8_t i = 0; i < 8; i++)
+  {
+    if (deviceAddress[i] < 16) Serial.print("0");
+    Serial.print(deviceAddress[i], HEX);
+  }
+}
+
+// function to print the temperature for a device
+// only called when DEBUG
+void printTemperature(DeviceAddress &d, float tempC, float tempF)
+{
+  Serial.print("Temp for Address: ");
+  printAddress(d);
+  Serial.println();
+
+  Serial.print("Temp C: ");
+  Serial.print(tempC);
+  Serial.print(" Temp F: ");
+  Serial.println(tempF);
+}
+
+#endif
+
 
 DeviceAddress dev_one = { 0x28, 0x5D, 0x43, 0x45, 0x92, 0x13, 0x02, 0xDE }; // 1
 DeviceAddress dev_two = { 0x28, 0x71, 0x3E, 0x45, 0x92, 0x0E, 0x02, 0xF1 }; // 2
@@ -30,3 +63,5 @@ DeviceAddress dev_twentyseven = { 0x28, 0xAF, 0xEA, 0x12, 0x1C, 0x19, 0x01, 0xCF
 DeviceAddress dev_twentyeight = { 0x28, 0x06, 0x8B, 0xF7, 0x1B, 0x19, 0x01, 0x6B }; // 28
 DeviceAddress dev_twentynine = { 0x28, 0x36, 0x73, 0x3A, 0x1B, 0x19, 0x01, 0xBA }; // 29
 DeviceAddress dev_twentythirty = { 0x28, 0xB8, 0x02, 0xEA, 0x1B, 0x19, 0x01, 0xE2 }; // 30
+
+#endif
