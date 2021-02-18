@@ -1,4 +1,4 @@
-#/*
+/*
   Name:		HeatingTempMon.ino
   Created:	10/28/2019 2:46:05 PM
   Author:	nusbaum
@@ -14,7 +14,7 @@
 #include <ArduinoJson.h>
 #include <DallasTemperature.h>
 
-#define DEVICENAME "TEST";
+#define DEVICENAME "CLOSET";
 #define MQTTHOST "192.168.0.134"
 
 #define DEBUG
