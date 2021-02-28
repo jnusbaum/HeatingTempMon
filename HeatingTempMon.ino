@@ -43,28 +43,40 @@ void configReceived(String &topic, String &payload) {
   // create new config and setup
   DeserializationError error = deserializeJson(doc, payload.c_str());
   DEBUG_PRINTLN(String("deserialization result: ") + error.c_str());
+  
   mqtt_client_id = doc["client_id"].as<const char*>();
   DEBUG_PRINTLN(String("client id: ") + mqtt_client_id);
+  
   numbusses = doc["num_interfaces"];
- 
   DEBUG_PRINTLN(String("number of interfaces: ") + numbusses);
+  
   busses = new SensorBus[numbusses];
+  
   JsonArray interfaces = doc["interfaces"].as<JsonArray>();
+  
   for (int x = 0; x < numbusses; ++x) {
     JsonObject jbus = interfaces[x];
+    
     int pin_number = jbus["pin_number"];
     DEBUG_PRINTLN(String("pin number: ") + pin_number);
-    const int num_sensors = jbus["num_devices"];
+    
+    const int num_sensors = jbus["num_tempsensors"];
     DEBUG_PRINTLN(String("number of sensors: ") + num_sensors);
+    
     busses[x].initialize(pin_number, num_sensors);
-    JsonArray sensors = jbus["sensors"].as<JsonArray>();
+    
+    JsonArray sensors = jbus["tempsensors"].as<JsonArray>();
+    
     for (int y = 0; y < num_sensors; ++y) {
       JsonObject jsensor = sensors[y];
+      
       const char *devname = jsensor["name"].as<const char*>();
       DEBUG_PRINTLN(String("sensor name: ") + devname);
+      
       const char *daddress = jsensor["address"].as<const char*>();
       DEBUG_PRINTLN(String("sensor address: ") + daddress);
-      busses[x].initsensor(x, devname, daddress);
+      
+      busses[x].initsensor(y, devname, daddress);
     }
     busses[x].begin();
   }
@@ -110,7 +122,7 @@ void connect() {
 
 void setup() {
 #ifdef DEBUG
-  Serial.begin(115200);
+  Serial.begin(9600);
 
   Serial.println();
   Serial.println();

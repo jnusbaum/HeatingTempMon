@@ -1,7 +1,7 @@
 #ifndef Defines_h
 #define Defines_h
 
-#define DEVICENAME "TEST";
+#define DEVICENAME "MECHROOM";
 #define MQTTHOST "192.168.0.134"
 
 // temp check interval                                                          

@@ -52,9 +52,12 @@ class SensorBus {
 
     void initialize(const int i_pin, const int i_numsensors) {
       pin = i_pin;
-      wire = new OneWire(pin);
-      bus = new DallasTemperature(wire);
       numsensors = i_numsensors;
+      DEBUG_PRINTLN(String("initing onewire on pin: ") + pin);
+      wire = new OneWire(pin);
+      DEBUG_PRINTLN("initing dallas temp");
+      bus = new DallasTemperature(wire);
+      DEBUG_PRINTLN("allocating tempsensors");
       sensors = new TempSensor[numsensors];
     }
 
