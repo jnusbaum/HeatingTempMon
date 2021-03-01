@@ -15,16 +15,11 @@ void printAddress(DeviceAddress &deviceAddress)
 }
 
 // function to print the temperature for a device
-void printTemperature(DeviceAddress &d, float tempC, float tempF)
+void printTemperature(const char *name, float tempC, float tempF)
 {
-  Serial.print("Temp for Address: ");
-  printAddress(d);
-  Serial.println();
-
-  Serial.print("Temp C: ");
-  Serial.print(tempC);
-  Serial.print(" Temp F: ");
-  Serial.println(tempF);
+  Serial.printf("Temp for %s = %.2f\n", name, tempF);
+  //Serial.printf("Temp C: %.2f", tempC);
+  //Serial.printf("Temp F: %f\n", tempF);
 }
 
 

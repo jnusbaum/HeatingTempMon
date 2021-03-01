@@ -49,13 +49,19 @@ void configReceived(String &i_topic, String &i_payload) {
  
   // create new config and setup
   DeserializationError error = deserializeJson(doc, payload);
-  DEBUG_PRINTF("deserialization result: %s", error.c_str());
+  DEBUG_PRINTF("deserialization result: %s\n", error.c_str());
+
+  yield();
+  client.loop();
   
   strcpy(mqtt_client_id, doc["client_id"].as<const char*>());
   DEBUG_PRINTF("client id: %s\n", mqtt_client_id);
   
   numbusses = doc["num_interfaces"];
   DEBUG_PRINTF("number of interfaces: %d\n", numbusses);
+
+  yield();
+   client.loop();
   
   JsonArray interfaces = doc["interfaces"].as<JsonArray>();
   
@@ -69,6 +75,9 @@ void configReceived(String &i_topic, String &i_payload) {
     DEBUG_PRINTF("number of sensors: %d\n", num_sensors);
     
     busses[x].initialize(pin_number, num_sensors);
+
+    yield();
+     client.loop();
     
     JsonArray sensors = jbus["tempsensors"].as<JsonArray>();
     
@@ -82,11 +91,18 @@ void configReceived(String &i_topic, String &i_payload) {
       DEBUG_PRINTF("sensor address: %s\n", daddress);
       
       busses[x].initsensor(y, devname, daddress);
+
+      yield();
+       client.loop();
     }
     busses[x].begin();
+    yield();
+    client.loop();
   }
   configured = true;
   publishStatus(client, timeClient, "CONFIGURED");
+  yield();
+  client.loop();
 }
 
 
@@ -126,7 +142,7 @@ void connect() {
 
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   Serial.println();
   Serial.println();

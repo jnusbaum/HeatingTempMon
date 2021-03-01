@@ -51,7 +51,6 @@ class SensorBus {
       wire = new OneWire(pin);
       DEBUG_PRINTLN("initing dallas temp");
       bus.setOneWire(wire);
-      DEBUG_PRINTLN("allocating tempsensors");
     }
 
     void initsensor(const int i_sensoridx, const char *i_devname, const char *i_daddress) {
@@ -61,19 +60,9 @@ class SensorBus {
 
     void begin() {
       bus.begin();
-      for (int y = 0; y < numsensors; ++y)
-      {
-        Serial.print("Device Address: ");
-        printAddress(sensors[y].devaddr);
-        Serial.println();
-
-        // set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
-        bus.setResolution(sensors[y].devaddr, 9);
-
-        Serial.print("Device Resolution: ");
-        Serial.print(bus.getResolution(sensors[y].devaddr), DEC);
-        Serial.println();
-      }
+      // set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
+      bus.setResolution(9);
+      yield();
     }
 
     void requestTemps() {
@@ -98,7 +87,7 @@ class SensorBus {
         float tempC = getTempC(y);
         float tempF = getTempF(y);
       #ifdef DEBUG
-        printTemperature(sensors[y].devaddr, tempC, tempF); // Use a simple function to print out the data
+        printTemperature(sensors[y].devname, tempC, tempF); // Use a simple function to print out the data
       #endif
       }
     }
