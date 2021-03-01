@@ -5,13 +5,17 @@
 #include <DallasTemperature.h>
 #include <ArduinoJson.h>
 
+#include "Defines.h"
+#include "DeviceAddresses.h"
+
+#define MAXSENSORS 16
 
 
 class TempSensor {
+  public:
     char devname[64];
     DeviceAddress devaddr;
 
-  public:
     void initialize(const char *i_devname, const char *i_daddress) {
       strcpy(devname, i_devname);
       devaddr[0] = (uint8_t)strtoul(i_daddress, nullptr, 16);
@@ -23,91 +27,68 @@ class TempSensor {
       devaddr[6] = (uint8_t)strtoul(i_daddress+36, nullptr, 16);
       devaddr[7] = (uint8_t)strtoul(i_daddress+42, nullptr, 16);
     }
-
-    const char *device_name() {
-      return devname;
-    }
-
-    DeviceAddress &device_address() {
-      return devaddr;
-    }
 };
 
 
 class SensorBus {
+  public:
     int pin;
     OneWire *wire;
-    DallasTemperature *bus;
+    DallasTemperature bus;
     int numsensors;
-    TempSensor *sensors;
+    TempSensor sensors[MAXSENSORS];;
 
-  public:
     SensorBus() {
       pin = 0;
       wire = nullptr;
-      bus = nullptr;
       numsensors = 0;
-      sensors = nullptr;
     }
 
     void initialize(const int i_pin, const int i_numsensors) {
       pin = i_pin;
       numsensors = i_numsensors;
-      DEBUG_PRINTLN(String("initing onewire on pin: ") + pin);
+      DEBUG_PRINTF("initing onewire on pin: %d\n", pin);
       wire = new OneWire(pin);
       DEBUG_PRINTLN("initing dallas temp");
-      bus = new DallasTemperature(wire);
+      bus.setOneWire(wire);
       DEBUG_PRINTLN("allocating tempsensors");
-      sensors = new TempSensor[numsensors];
     }
 
     void initsensor(const int i_sensoridx, const char *i_devname, const char *i_daddress) {
       sensors[i_sensoridx].initialize(i_devname, i_daddress);
     }
 
-    int numSensors() {
-      return numsensors;
-    }
 
     void begin() {
-      bus->begin();
+      bus.begin();
       for (int y = 0; y < numsensors; ++y)
       {
-        #ifdef DEBUG
         Serial.print("Device Address: ");
-        printAddress(sensors[y].device_address());
+        printAddress(sensors[y].devaddr);
         Serial.println();
-        #endif
 
         // set the resolution to 9 bit (Each Dallas/Maxim device is capable of several different resolutions)
-        bus->setResolution(sensors[y].device_address(), 9);
+        bus.setResolution(sensors[y].devaddr, 9);
 
-        #ifdef DEBUG
         Serial.print("Device Resolution: ");
-        Serial.print(bus->getResolution(sensors[y].device_address()), DEC);
+        Serial.print(bus.getResolution(sensors[y].devaddr), DEC);
         Serial.println();
-        #endif
       }
     }
 
     void requestTemps() {
-      bus->requestTemperatures();
+      bus.requestTemperatures();
     }
 
     float getTempC(int y) {
-      float tempC = bus->getTempC(sensors[y].device_address());
+      float tempC = bus.getTempC(sensors[y].devaddr);
       return tempC;
     }
 
     float getTempF(int y) {
       float tempC = getTempC(y);
-      float tempF = bus->toFahrenheit(tempC);
+      float tempF = bus.toFahrenheit(tempC);
       return tempF;
-    }
-
-
-    const char *deviceName(int y) {
-      return sensors[y].device_name();
     }
 
 
@@ -117,15 +98,19 @@ class SensorBus {
         float tempC = getTempC(y);
         float tempF = getTempF(y);
       #ifdef DEBUG
-        printTemperature(sensors[y].device_address(), tempC, tempF); // Use a simple function to print out the data
+        printTemperature(sensors[y].devaddr, tempC, tempF); // Use a simple function to print out the data
       #endif
       }
     }
 
-    ~SensorBus() {
-      delete [] sensors;
-      delete bus;
+    void shutdown() {
+      numsensors = 0;
       delete wire;
+      wire = nullptr;
+    }
+
+    ~SensorBus() {
+      shutdown();
     }
 
 };

@@ -16,8 +16,8 @@ void publishStatus(MQTTClient &client, NTPClient &timeClient, const char *status
   doc["timestamp"] = timeClient.getEpochTime();;
   char buffer[128];
   int n = serializeJson(doc, buffer);
-  DEBUG_PRINTF("[MQTT] PUBLISHing to %s\n", statusTopic.c_str());
-  client.publish(statusTopic.c_str(), buffer, n);
+  DEBUG_PRINTF("[MQTT] PUBLISHing to %s\n", STATUSTOPIC);
+  client.publish(STATUSTOPIC, buffer, n);
   DEBUG_PRINTLN("Published.");
 }
 
@@ -31,11 +31,13 @@ void publishState(MQTTClient &client, NTPClient &timeClient, const char *relay, 
   doc["timestamp"] = etime;
   doc["value"] = value;
   // Generate the minified JSON and put it in buffer.
-  String topic = relayTopic + relay;
+  char topic[256];
+  strcpy(topic, RELAYTOPIC);
+  strcat(topic, relay);
   char buffer[128];
   int n = serializeJson(doc, buffer);
-  DEBUG_PRINTF("[MQTT] PUBLISHing to %s\n", topic.c_str());
-  client.publish(topic.c_str(), buffer, n);
+  DEBUG_PRINTF("[MQTT] PUBLISHing to %s\n", topic);
+  client.publish(topic, buffer, n);
 }
 
 
@@ -48,11 +50,13 @@ void publishTemp(MQTTClient &client, NTPClient &timeClient, const char *sensor, 
   doc["timestamp"] = etime;
   doc["value"] = value;
   // Generate the minified JSON and put it in buffer.
-  String topic = tempTopic + sensor;
+  char topic[256];
+  strcpy(topic, TEMPTOPIC);
+  strcat(topic, sensor);
   char buffer[128];
   int n = serializeJson(doc, buffer);
-  DEBUG_PRINTF("[MQTT] PUBLISHing to %s\n", topic.c_str());
-  client.publish(topic.c_str(), buffer, n);
+  DEBUG_PRINTF("[MQTT] PUBLISHing to %s\n", topic);
+  client.publish(topic, buffer, n);
 }
 
 #endif

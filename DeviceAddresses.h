@@ -3,10 +3,8 @@
 
 #include <DallasTemperature.h>
 
-#ifdef DEBUG
 
 // function to print a device address
-// only called when DEBUG
 void printAddress(DeviceAddress &deviceAddress)
 {
   for (uint8_t i = 0; i < 8; i++)
@@ -17,7 +15,6 @@ void printAddress(DeviceAddress &deviceAddress)
 }
 
 // function to print the temperature for a device
-// only called when DEBUG
 void printTemperature(DeviceAddress &d, float tempC, float tempF)
 {
   Serial.print("Temp for Address: ");
@@ -29,8 +26,6 @@ void printTemperature(DeviceAddress &d, float tempC, float tempF)
   Serial.print(" Temp F: ");
   Serial.println(tempF);
 }
-
-#endif
 
 
 DeviceAddress dev_one = { 0x28, 0x5D, 0x43, 0x45, 0x92, 0x13, 0x02, 0xDE }; // 1

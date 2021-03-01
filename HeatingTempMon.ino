@@ -20,37 +20,42 @@
 
 #define DEBUG
 
+#define MAXBUSSES 4
+
 WiFiClient net;
 MQTTClient client(4096);
 
-String mqtt_client_id;
+char mqtt_client_id[64];
 bool configured = false;
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "us.pool.ntp.org");
 
 int numbusses = 0;
-SensorBus *busses = nullptr;
+SensorBus busses[MAXBUSSES];
 
-void configReceived(String &topic, String &payload) {
-  DEBUG_PRINTLN("incoming config: " + topic + " - " + payload);
+void configReceived(String &i_topic, String &i_payload) {
+  const char *topic = i_topic.c_str();
+  const char *payload = i_payload.c_str();
+  DEBUG_PRINTF("incoming config: %s\n", topic);
+  DEBUG_PRINTLN(payload);
   publishStatus(client, timeClient, "CONFIG RECEIVED");
   DynamicJsonDocument doc(4096);
 
   // shutdown and free existing config here
-  if (busses) delete [] busses;
-    
+  for (int x = 0; x < numbusses; ++x) {
+      busses[x].shutdown();
+  }
+ 
   // create new config and setup
-  DeserializationError error = deserializeJson(doc, payload.c_str());
-  DEBUG_PRINTLN(String("deserialization result: ") + error.c_str());
+  DeserializationError error = deserializeJson(doc, payload);
+  DEBUG_PRINTF("deserialization result: %s", error.c_str());
   
-  mqtt_client_id = doc["client_id"].as<const char*>();
-  DEBUG_PRINTLN(String("client id: ") + mqtt_client_id);
+  strcpy(mqtt_client_id, doc["client_id"].as<const char*>());
+  DEBUG_PRINTF("client id: %s\n", mqtt_client_id);
   
   numbusses = doc["num_interfaces"];
-  DEBUG_PRINTLN(String("number of interfaces: ") + numbusses);
-  
-  busses = new SensorBus[numbusses];
+  DEBUG_PRINTF("number of interfaces: %d\n", numbusses);
   
   JsonArray interfaces = doc["interfaces"].as<JsonArray>();
   
@@ -58,10 +63,10 @@ void configReceived(String &topic, String &payload) {
     JsonObject jbus = interfaces[x];
     
     int pin_number = jbus["pin_number"];
-    DEBUG_PRINTLN(String("pin number: ") + pin_number);
+    DEBUG_PRINTF("pin number: %d\n", pin_number);
     
     const int num_sensors = jbus["num_tempsensors"];
-    DEBUG_PRINTLN(String("number of sensors: ") + num_sensors);
+    DEBUG_PRINTF("number of sensors: %d\n", num_sensors);
     
     busses[x].initialize(pin_number, num_sensors);
     
@@ -71,10 +76,10 @@ void configReceived(String &topic, String &payload) {
       JsonObject jsensor = sensors[y];
       
       const char *devname = jsensor["name"].as<const char*>();
-      DEBUG_PRINTLN(String("sensor name: ") + devname);
+      DEBUG_PRINTF("sensor name: %s\n", devname);
       
       const char *daddress = jsensor["address"].as<const char*>();
-      DEBUG_PRINTLN(String("sensor address: ") + daddress);
+      DEBUG_PRINTF("sensor address: %s\n", daddress);
       
       busses[x].initsensor(y, devname, daddress);
     }
@@ -88,7 +93,7 @@ void configReceived(String &topic, String &payload) {
 void req_configure() {
   DEBUG_PRINTLN("configuring...");
   configured = false;
-  client.publish(configRequestTopic.c_str());
+  client.publish(CONFIGREQUESTTOPIC);
   DEBUG_PRINTLN("config requested");
   publishStatus(client, timeClient, "CONFIG REQUESTED");
 }
@@ -109,19 +114,18 @@ void connect() {
   DEBUG_PRINTLN(WiFi.macAddress());
 
   DEBUG_PRINT("\nconnecting to MQTT...");
-  while (!client.connect(mqtt_client_id.c_str())) {
+  while (!client.connect(mqtt_client_id)) {
     DEBUG_PRINT(".");
     delay(500);
   }
   DEBUG_PRINTLN("\nconnected!");
   
-  client.subscribe(configReceiveTopic.c_str());
-  DEBUG_PRINTLN(String("subscribed to ") + configReceiveTopic);
+  client.subscribe(CONFIGRECEIVETOPIC);
+  DEBUG_PRINTF("subscribed to %s\n", CONFIGRECEIVETOPIC);
 }
 
 
 void setup() {
-#ifdef DEBUG
   Serial.begin(9600);
 
   Serial.println();
@@ -133,7 +137,6 @@ void setup() {
     Serial.flush();
     delay(1000);
   }
-#endif
 
   WiFi.mode(WIFI_STA);
   WiFi.begin("nusbaum-24g", "we live in Park City now");
