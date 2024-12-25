@@ -16,7 +16,7 @@
 #include <DallasTemperature.h>
 
 #define DEVICENAME "MECHROOM";
-#define MQTTHOST "192.168.0.134"
+#define MQTTHOST "192.168.4.36"
 
 #define DEBUG
 
