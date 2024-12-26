@@ -1,4 +1,27 @@
+#ifndef DeviceAddresses_h
+#define DeviceAddresses_h
+
 #include <DallasTemperature.h>
+
+
+// function to print a device address
+void printAddress(DeviceAddress &deviceAddress)
+{
+  for (uint8_t i = 0; i < 8; i++)
+  {
+    if (deviceAddress[i] < 16) Serial.print("0");
+    Serial.print(deviceAddress[i], HEX);
+  }
+}
+
+// function to print the temperature for a device
+void printTemperature(const char *name, float tempC, float tempF)
+{
+  Serial.printf("Temp for %s = %.2f\n", name, tempF);
+  //Serial.printf("Temp C: %.2f", tempC);
+  //Serial.printf("Temp F: %f\n", tempF);
+}
+
 
 DeviceAddress dev_one = { 0x28, 0x5D, 0x43, 0x45, 0x92, 0x13, 0x02, 0xDE }; // 1
 DeviceAddress dev_two = { 0x28, 0x71, 0x3E, 0x45, 0x92, 0x0E, 0x02, 0xF1 }; // 2
@@ -30,3 +53,5 @@ DeviceAddress dev_twentyseven = { 0x28, 0xAF, 0xEA, 0x12, 0x1C, 0x19, 0x01, 0xCF
 DeviceAddress dev_twentyeight = { 0x28, 0x06, 0x8B, 0xF7, 0x1B, 0x19, 0x01, 0x6B }; // 28
 DeviceAddress dev_twentynine = { 0x28, 0x36, 0x73, 0x3A, 0x1B, 0x19, 0x01, 0xBA }; // 29
 DeviceAddress dev_twentythirty = { 0x28, 0xB8, 0x02, 0xEA, 0x1B, 0x19, 0x01, 0xE2 }; // 30
+
+#endif
